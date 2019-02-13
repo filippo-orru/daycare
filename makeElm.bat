@@ -1,0 +1,1 @@
+elm make /src/main.elm
