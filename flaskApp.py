@@ -1,4 +1,6 @@
-from flask import Flask, render_template, jsonify, request, json
+from flask import Flask, render_template, jsonify, request, json, Response
+from tools import actions
+import databaseApi
 app = Flask(__name__)
 
 
@@ -10,212 +12,55 @@ def index():
 # Api
 apipath = '/api/v1/'
 
+# newapi
+
 
 # settings
-@app.route(apipath + 'settings/edit', methods=['POST'])
-def settings_edit():
-    errorLevel = 0
+@app.route(apipath + '<component>/<action>', methods=['POST'])
+def apiAction(component, action):
+    errorLevel = 0  # 1: Invalid action; ((2: missing ctype or content))
     response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['settings'] = content['settings']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
 
+    print()
+    print('======== Api called ========')
+    print('component: ' + component + ' action: ' + action)
+
+    if action not in ['get', 'edit', 'create',
+                      'delete']:  # check for valid action
+        errorLevel = 1
+
+    username = request.form['username']
+    content = None
+
+    if 'content' in request.form:  # request has content   # [action is get and ]
+        if 'arrkey' in request.form:  # request has array position
+            content = '['
+            # create array of length <arrkey> and insert content at <arrkey>
+            i = 0
+            while i < int(request.form['arrkey']):
+                content += "{},"
+                i += 1
+
+            content += request.form['content'] + ']'
+        else:
+            content = request.form['content']
+
+    databaseApiParams = [username, component, content]
+    dbAResponse = getattr(databaseApi,
+                          action)(actions.cleanList(databaseApiParams))
+
+    if dbAResponse != '0':
+        response['content'] = dbAResponse
+
+    if errorLevel != 0:  # clear response if error
+        response = {'errorLevel': errorLevel}
+    else:
+        response['errorLevel'] = errorLevel
+
+    print('======== Api responded ========')
+    print()
+    # return Response(jsonify(response), mimetype='application/json')
     return jsonify(response)
-
-
-@app.route(apipath + 'settings/reset', methods=['POST'])
-def settings_reset():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': 'Success/failure'})
-
-
-# end settings
-
-
-# ++ Start activity ++
-@app.route(apipath + 'activity/create', methods=['POST'])
-def activity_create():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['actitivity'] = content['actitivity']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
-
-
-@app.route(apipath + 'activity/get', methods=['POST'])
-def activity_get():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['actitivity'] = content['actitivity']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
-
-
-@app.route(apipath + 'activity/edit', methods=['POST'])
-def activity_edit():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['actitivity'] = content['actitivity']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
-
-
-@app.route(apipath + 'activity/delete', methods=['POST'])
-def activity_delete():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['actitivity'] = content['actitivity']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
-
-
-# -- End activity --
-
-
-# ++ Start category ++
-@app.route(apipath + 'category/create', methods=['POST'])
-def category_create():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['category'] = content['category']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
-
-
-@app.route(apipath + 'category/get', methods=['POST'])
-def category_get():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['category'] = content['category']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
-
-
-@app.route(apipath + 'category/edit', methods=['POST'])
-def category_edit():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['category'] = content['category']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
-
-
-@app.route(apipath + 'category/delete', methods=['POST'])
-def category_delete():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['category'] = content['category']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
-
-
-# -- End category --
-
-
-# ++ Start lifegoal ++
-@app.route(apipath + 'lifegoal/create', methods=['POST'])
-def lifegoal_create():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['settings'] = content['settings']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
-
-
-@app.route(apipath + 'lifegoal/edit', methods=['POST'])
-def lifegoal_edit():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['settings'] = content['settings']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
-
-
-@app.route(apipath + 'lifegoal/delete', methods=['POST'])
-def lifegoal_delete():
-    errorLevel = 0
-    response = {}
-    try:
-        content = json.loads(request.form['content'])
-        response['user'] = content['user']
-        response['settings'] = content['settings']
-        response['errorLevel'] = errorLevel
-    except:
-        response = {'errorLevel': 1}
-
-    return jsonify({'test': content})
 
 
 # -- End lifegoal --
