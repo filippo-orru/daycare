@@ -107,7 +107,7 @@ venv.bak/
 databaseConfig.ini
 \.idea/
 \.vscode/
-crap*.py
+*/crap/
 bak/
-\database/
-testing.py
+database/
+exampleuser.json

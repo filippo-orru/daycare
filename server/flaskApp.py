@@ -25,29 +25,33 @@ def apiAction(component, action):
     print('======== Api called ========')
     print('component: ' + component + ' action: ' + action)
 
-    if action not in ['get', 'edit', 'create',
-                      'delete']:  # check for valid action
+    if action not in [
+            'get', 'edit', 'create', 'delete'
+    ] or 'username' not in request.form:  # check for valid action
         errorLevel = 1
 
     username = request.form['username']
     content = None
+    overwrite = None
 
-    if 'content' in request.form:  # request has content   # [action is get and ]
-        if 'arrkey' in request.form:  # request has array position
-            content = '['
-            # create array of length <arrkey> and insert content at <arrkey>
-            i = 0
-            while i < int(request.form['arrkey']):
-                content += "{},"
-                i += 1
+    # ## ## ##  NEXT: WORK ON INVALID CONTENT ERROR HANDLING -> RESPONSE ERRORLEVEL ETC.
 
-            content += request.form['content'] + ']'
-        else:
-            content = request.form['content']
+    if action in ['edit']:
+        if 'overwrite' in request.form:
+            overwrite = (request.form['overwrite'].lower() == 'true')
 
-    databaseApiParams = [username, component, content]
-    dbAResponse = getattr(databaseApi,
-                          action)(actions.cleanList(databaseApiParams))
+        if 'content' in request.form:  # request has content   # [action is get and ]
+            if not overwrite and 'key' in request.form:  # request has object key
+                content = '{{"{0}": {1}}}'.format(request.form['key'],
+                                                  request.form['content'])
+                # create obj and insert content at <key>
+            else:
+                content = request.form['content']
+
+    databaseApiParams = actions.cleanList(
+        [username, component, content, overwrite])
+
+    dbAResponse = getattr(databaseApi, action)(*databaseApiParams)
 
     if dbAResponse != '0':
         response['content'] = dbAResponse

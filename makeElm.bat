@@ -1,1 +1,1 @@
-elm make /src/main.elm
+elm make /elm/main.elm

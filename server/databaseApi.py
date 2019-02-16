@@ -28,7 +28,7 @@ def get(username, component):  #, _id=-1):
     return servercontent
 
 
-def edit(username, component, usercontent):
+def edit(username, component, usercontent, overwrite=False):
     '''
     input: str(username), str(component), str(usercontent) -> bson-format
     return: int(errorLevel) -> 0/_
@@ -37,18 +37,29 @@ def edit(username, component, usercontent):
     usercontent = loads(usercontent)  # bson -> pyobj
     # both contents are now python objects
 
-    print('servercontent')
-    print(servercontent)
-    print('usercontent')
-    print(usercontent)
-    if len(usercontent) > len(servercontent):
-        servercontent.append(usercontent)
+    # print('servercontent')
+    # print(servercontent)
+    # print('usercontent')
+    # print(usercontent)
+
+    # if len(usercontent) > len(servercontent):
+    #     servercontent.append(usercontent[len(usercontent) - 1])
+    # elif:
+    # i = 0
+    # while i < len(
+    # usercontent):  # Merge new into old servercontent (overwrite)
+    # usercontent = {'test': '3'}
+
+    if overwrite:
+        servercontent = usercontent
     else:
-        i = 0
-        while i < len(
-                usercontent):  # Merge new into old servercontent (overwrite)
-            servercontent[i].update(usercontent[i])
-            i += 1
+        for key in usercontent.keys():
+            if key not in servercontent.keys():
+                servercontent[key] = usercontent[key]
+            else:
+                servercontent[key].update(usercontent[key])
+
+    # i += 1
 
     dbe('users', 'update', [{
         'username': username

@@ -194,7 +194,7 @@ def cleanQeuery(query):
 
 
 def cleanList(uinput):
-    return (*list(filter(None, uinput)))
+    return list(filter(None, uinput))
 
 
 if __name__ == "__main__":
