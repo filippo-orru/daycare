@@ -1,31 +1,60 @@
 from bson.json_util import dumps, loads
 # import bson.json_util
-from tools import databaseConnection
+from tools import databaseConnection, actions
 import json
 
 dbe = databaseConnection.executeMDb
 
 
-def get(username, component):  #, _id=-1):
+def login(username, password):
+    pass
+
+
+def get(username, component, key=None):  #, _id=-1):
     '''
     input: str(username), str(component)
-    return: python object -> loads(dumps(pymongo.cursor.return))'''
+    return: python object -> loads(dumps(pymongo.cursor.return))
+    '''
 
+    success = True
     if component not in [
             'settings', 'attributes', 'categories', 'activities', 'goals',
-            'days'
+            'days', 'user'
     ]:
         raise KeyError('Not a valid servercontent type (component)')
 
-    servercontent = dbe('users', 'find',
-                        {'username': username})['dbReturn'][0][component]
+    servercontent = dbe('users', 'find', {'username': username})['dbReturn'][0]
 
-    servercontent = loads(dumps(servercontent))
+    if component != 'user':
+        servercontent = servercontent[component]
+        # component defined -> go a level deeper
 
-    # if _id >= 0:
-    #     return servercontent[_id]
+        if key:  # key defined
+            try:
+                key = int(key)
+            except ValueError:
+                pass
 
-    return servercontent
+            # print('type(key)')
+            # print(type(key))
+            # print('type(servercontent)')
+            # print(type(servercontent))
+            if (type(key) == int and type(servercontent) == list) \
+            or (type(key) == str and type(servercontent) == dict): # key defined and proper usage
+                servercontent = servercontent[key]
+            else:  # key defined but improper usage
+                success = False
+
+    else:  # component = user -> pop problematic objectID index
+        servercontent.pop('_id')
+
+    servercontent = json.loads(
+        dumps(servercontent))  # convert content to bson and back to pyobj
+
+    if success:
+        return servercontent
+    else:
+        return False
 
 
 def edit(username, component, usercontent, overwrite=False):
@@ -33,33 +62,20 @@ def edit(username, component, usercontent, overwrite=False):
     input: str(username), str(component), str(usercontent) -> bson-format
     return: int(errorLevel) -> 0/_
     '''
+    success = True
     servercontent = get(username, component)  # bson -> pyobj
     usercontent = loads(usercontent)  # bson -> pyobj
     # both contents are now python objects
-
-    # print('servercontent')
-    # print(servercontent)
-    # print('usercontent')
-    # print(usercontent)
-
-    # if len(usercontent) > len(servercontent):
-    #     servercontent.append(usercontent[len(usercontent) - 1])
-    # elif:
-    # i = 0
-    # while i < len(
-    # usercontent):  # Merge new into old servercontent (overwrite)
-    # usercontent = {'test': '3'}
 
     if overwrite:
         servercontent = usercontent
     else:
         for key in usercontent.keys():
+
             if key not in servercontent.keys():
                 servercontent[key] = usercontent[key]
             else:
                 servercontent[key].update(usercontent[key])
-
-    # i += 1
 
     dbe('users', 'update', [{
         'username': username
@@ -68,7 +84,11 @@ def edit(username, component, usercontent, overwrite=False):
             component: servercontent
         }
     }])
-    return 0
+
+    if success:
+        return True
+    else:
+        return False
 
 
 def delete(component, identifier):
@@ -78,21 +98,6 @@ def delete(component, identifier):
 create = edit  # Create is alias for edit
 
 if __name__ == "__main__":
-    print('running from main')
-    ucontent = get('fefe', 'goals')
-    print(ucontent)
-    # ucontent[0]['description'] = 'Ich will meinen Führerschein endlich machen'
-
-    data = '[{"_id": ObjectId("5c632d5d3ee0872e8571d9d5"), "name": "Führerschein", "description": "123 Ich will meinen Führerschein endlich machen", "timelimit": datetime.datetime(2019, 7, 24, 22, 0)}]'
-    data = '[{"_id": {"$oid": "5c632d5d3ee0872e8571d9d5"},"name":"F\u00fchrerschein","description":"123 Ich will meinen F\u00fchrerschein endlich machen","timelimit": {"$date": 1564005600000}}]'
-
-    edit('fefe', 'goals', data)
-
-# def create(component, servercontent):
-#     dbe('users', 'update', [{
-#         'username': servercontent['username']
-#     }, {
-#         '$set': {
-#             'activities': servercontent[activity]
-#         }
-#     }, True])
+    username = "fefe"
+    user = dbe('users', 'find', {'username': username})
+    print(user)

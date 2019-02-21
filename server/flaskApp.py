@@ -1,73 +1,69 @@
-from flask import Flask, render_template, jsonify, request, json, Response
-from tools import actions
+from flask import Flask, render_template, jsonify as j, request, json, Response, session
+from flask_cors import CORS
+from tools.actions import cleanList
 import databaseApi
-app = Flask(__name__)
+from datetime import datetime
+
+app = Flask(
+    __name__,
+    template_folder="frontend/templates",
+    static_folder="frontend/static")
+
+CORS(app)
 
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    dt = datetime.now().strftime('%d.%m.%Y')
+    # date = "{0}.{1}.{2}".format(dt.day, dt.month, dt.year)
+    date = dt
+
+    return render_template(
+        'index.html', user=databaseApi.get('fefe', 'user'), cdate=date)
 
 
 # Api
-apipath = '/api/v1/'
+apipath1 = '/api/v1/'
+apipath2 = '/api/v2/'
 
 # newapi
 
 
-# settings
-@app.route(apipath + '<component>/<action>', methods=['POST'])
-def apiAction(component, action):
-    errorLevel = 0  # 1: Invalid action; ((2: missing ctype or content))
-    response = {}
+@app.route('/elmtest', methods=['POST'])
+def elmtest():
+    # print(request.get_json())
+    # print(type(request.get_json()))
+    # print(type(request.data[0]))
+    # print(request.data[2])
+    # print(type(request.data[2]))
+    # print(request)
+    return j({"username": request.get_json()['username']})
 
-    print()
-    print('======== Api called ========')
-    print('component: ' + component + ' action: ' + action)
 
-    if action not in [
-            'get', 'edit', 'create', 'delete'
-    ] or 'username' not in request.form:  # check for valid action
-        errorLevel = 1
+@app.route(apipath2 + 'get', methods=['POST'])
+@app.route(apipath2 + 'get/<component>', methods=['POST'])
+@app.route(apipath2 + 'get/<component>/<key>', methods=['POST'])
+def get(component=None, key=None):
+    success = True
+    _request = request.get_json()
 
-    username = request.form['username']
-    content = None
-    overwrite = None
-
-    # ## ## ##  NEXT: WORK ON INVALID CONTENT ERROR HANDLING -> RESPONSE ERRORLEVEL ETC.
-
-    if action in ['edit']:
-        if 'overwrite' in request.form:
-            overwrite = (request.form['overwrite'].lower() == 'true')
-
-        if 'content' in request.form:  # request has content   # [action is get and ]
-            if not overwrite and 'key' in request.form:  # request has object key
-                content = '{{"{0}": {1}}}'.format(request.form['key'],
-                                                  request.form['content'])
-                # create obj and insert content at <key>
-            else:
-                content = request.form['content']
-
-    databaseApiParams = actions.cleanList(
-        [username, component, content, overwrite])
-
-    dbAResponse = getattr(databaseApi, action)(*databaseApiParams)
-
-    if dbAResponse != '0':
-        response['content'] = dbAResponse
-
-    if errorLevel != 0:  # clear response if error
-        response = {'errorLevel': errorLevel}
+    if 'username' in _request:
+        username = _request['username']
     else:
-        response['errorLevel'] = errorLevel
+        return j({'success': False})
 
-    print('======== Api responded ========')
-    print()
-    # return Response(jsonify(response), mimetype='application/json')
-    return jsonify(response)
+    if not component:
+        component = 'user'
+
+    content = databaseApi.get(*cleanList(username, component, key))
+    if not content:
+        success = False
+
+    if success:
+        return j({'success': success, "content": content})
+    else:
+        return j({"success": success})
 
 
-# -- End lifegoal --
-
-if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=8000, debug=True)
+# if __name__ == '__main__':
+#     app.run(host='127.0.0.1', port=8000, debug=True)

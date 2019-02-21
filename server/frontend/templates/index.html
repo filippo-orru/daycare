@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>daycare</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" media="screen" href="static/style.css">
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+</head>
+
+<body>
+    {% set max_description_len = 50 %}
+    <div class="main">
+        {# <div> {{ user }} </div> #}
+        {# <span>{{ user.days['12.02.2019'] }}</span> #}
+        <div class="sidebar">
+            <div class="head">
+                <h2 class="sidebar-header">daycare</h2>
+            </div>
+            <div class="sidebar-frequent">
+                <h3>frequent</h3>
+                <ul class="frequent-list">
+                    <li class="frequent">test</li>
+                </ul>
+            </div>
+            <div class="sidebar-goals">
+                <h3>goals</h3>
+                <ul class="goal-list">
+                    {% for goal in user.goals %}
+                    <li class="goal">{{ goal }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        <div class="planner">
+            <button id="b-toggle-sidebar"><</button>
+            <div class="days">
+                <ul class="days-list">
+                    {% for date,day in user.days.items() %}
+                    {# {{cdate}}
+                    {{date}}
+                    {{cdate == date}} #}
+                    <li class="day {% if cdate == date %}today{% endif %}">
+                        <div class="day-header">
+                            <h4 class="day-title">{{date}}</h4>
+                            <div class="attributes">
+                                <ul class="attributes-list">
+                                {# {{day}} #}
+                                {# {{day['attributes']}} #}
+                                    {% for attribute in day.attributes %}
+                                    <li class="attribute">{{attribute}}</li>
+                                    {%- endfor %}
+                                </ul>
+                            </div>
+                            <p class="day-description">{{ day.description[:max_description_len] }}{% if day.description|length > max_description_len %}...{% endif %}</p>
+                        </div>
+                        <div class="tasks">
+                            <ul class="task-list">
+                                {% for task in day.tasks %}
+                                <li class="task">{{ task.name }}</li>
+                                {% endfor %}
+                            </ul>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript" src="{{ url_for ('static',filename='live.js') }}"></script>
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+    </body>
+
+</html>

@@ -193,7 +193,10 @@ def cleanQeuery(query):
     return query
 
 
-def cleanList(uinput):
+def cleanList(*uinput):
+    '''
+    Removes any empty or None items from the list
+    '''
     return list(filter(None, uinput))
 
 
