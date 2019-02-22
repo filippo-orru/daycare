@@ -9,7 +9,7 @@ app = Flask(
     template_folder="frontend/templates",
     static_folder="frontend/static")
 
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 
 @app.route('/')
