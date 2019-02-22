@@ -200,6 +200,25 @@ def cleanList(*uinput):
     return list(filter(None, uinput))
 
 
+def stringToInt(s):
+    abc = [
+        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+        'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '1', '2',
+        '3', '4', '5', '6', '7', '8', '9', '0'
+    ]
+    # iis = ""
+    ii = 0
+    for c in list(s):
+        if c in abc:
+            ii += (abc.index(c) + 1) * 10
+
+        #     iis += str(abc.index(c) + 1)
+        else:
+            ii += 0
+    return int(ii)
+
+
 if __name__ == "__main__":
-    pass
+    # print(stringToInt('hello world'))
     # data = '[{"_id": ObjectId("5c632d5d3ee0872e8571d9d5"), "name": "Führerschein", "description": "123 Ich will meinen Führerschein endlich machen", "timelimit": datetime.datetime(2019, 7, 24, 22, 0)}]'
+    pass

@@ -1,13 +1,52 @@
 from bson.json_util import dumps, loads
 # import bson.json_util
-from tools import databaseConnection, actions
+from tools import databaseConnection, actions, tokenManager
 import json
 
 dbe = databaseConnection.executeMDb
 
 
-def login(username, password):
-    pass
+def login(u, p):
+    dbReturn = dbe('users', 'find', {'username': u})['dbReturn'][0]
+
+    if 'token' in dbReturn:
+        token = str(dbReturn['token'])
+    else:
+        token = tokenManager.generateToken(u, p)
+        print(token)
+        print(type(token))
+        dbe('users', 'update', [{'username': u}, {'$set': {'token': token}}])
+
+    return token
+
+
+def logout(token):
+    username = auth(token)
+    if username:
+        token = ""
+        dbe('users', 'update', [{
+            'username': username
+        }, {
+            '$set': {
+                'token': token
+            }
+        }])
+    else:
+        return False
+    return True
+
+
+def auth(token):
+    try:
+        dbReturn = dbe('users', 'find', {'token': token})['dbReturn'][0]
+
+    except IndexError:
+        return False
+
+    if len(dbReturn) > 0:
+        return dbReturn['username']
+    else:
+        return False
 
 
 def get(username, component, key=None):  #, _id=-1):

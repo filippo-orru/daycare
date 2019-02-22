@@ -1,6 +1,8 @@
 from flask import Flask, render_template, jsonify as j, request, json, Response, session
 from flask_cors import CORS
 from tools.actions import cleanList
+from tools import tokenManager
+
 import databaseApi
 from datetime import datetime
 
@@ -10,6 +12,9 @@ app = Flask(
     static_folder="frontend/static")
 
 CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+app.secret_key = b'ctigsrehulyauul'
+# session(app)
 
 
 @app.route('/')
@@ -31,13 +36,75 @@ apipath2 = '/api/v2/'
 
 @app.route('/elmtest', methods=['POST'])
 def elmtest():
-    # print(request.get_json())
-    # print(type(request.get_json()))
-    # print(type(request.data[0]))
-    # print(request.data[2])
-    # print(type(request.data[2]))
-    # print(request)
     return j({"username": request.get_json()['username']})
+
+
+@app.route(apipath2 + 'login_db', methods=['POST'])
+def api_login_db():
+    data = request.get_json()
+    if 'username' in data and 'password' in data:
+        u = data['username']
+        p = data['password']
+    else:
+        return jFalse()
+
+    token = databaseApi.login(u, p)
+    # print(token)
+    # print(type(token))
+    return jTrue({'token': token})
+
+
+@app.route(apipath2 + 'logout_db', methods=['POST'])
+def api_logout_db():
+    if 'token' in request.get_json():
+        token = request.get_json()['token']
+    else:
+        return jFalse()
+
+    if databaseApi.logout(token):
+        return jTrue()
+    else:
+        return jFalse()
+
+
+@app.route(apipath2 + 'loggedin_db', methods=['POST'])
+def loggedin_db():
+    if 'token' in request.get_json():
+        token = request.get_json()['token']
+    else:
+        return jFalse()
+
+    auth = databaseApi.auth(token)
+
+    return jTrue({"loggedin": auth})
+
+
+@app.route(apipath2 + 'login_session', methods=['POST'])
+def api_login_session():
+    token = tokenManager.addToken(session, request)
+
+    if token:
+        session['user'] = {'token': token}
+        return jTrue({'token': token})
+    else:
+        return jFalse()
+
+
+@app.route(apipath2 + 'logout_session', methods=['POST'])
+def api_logout_session():
+
+    if tokenManager.auth(request, session):
+        session.pop('user')
+        return jTrue()
+    else:
+        return jFalse()
+
+
+@app.route(apipath2 + 'loggedin_session', methods=['POST'])
+def loggedin_session():
+    auth = tokenManager.auth(request, session)
+
+    return jTrue({"loggedin": auth})
 
 
 @app.route(apipath2 + 'get', methods=['POST'])
@@ -50,19 +117,34 @@ def get(component=None, key=None):
     if 'username' in _request:
         username = _request['username']
     else:
-        return j({'success': False})
+        return jFalse()
 
     if not component:
         component = 'user'
 
     content = databaseApi.get(*cleanList(username, component, key))
     if not content:
-        success = False
+        return jFalse()
 
-    if success:
-        return j({'success': success, "content": content})
+    return jTrue({"content": content})
+
+
+def jFalse():
+    return j({'success': False})
+
+
+def jTrue(udi=False):
+    di = {'success': True}
+
+    if type(udi) == dict:
+        for key, value in udi.items():
+            di[key] = value
+    elif not udi:
+        pass
     else:
-        return j({"success": success})
+        raise TypeError
+
+    return j(di)
 
 
 # if __name__ == '__main__':
