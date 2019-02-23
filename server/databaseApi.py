@@ -7,14 +7,19 @@ dbe = databaseConnection.executeMDb
 
 
 def login(u, p):
-    dbReturn = dbe('users', 'find', {'username': u})['dbReturn'][0]
+    dbReturn = dbe('users', 'find', {'username': u, 'password': p})['dbReturn']
+
+    try:
+        dbReturn = dbReturn[0]
+    except IndexError:
+        return False
 
     if 'token' in dbReturn:
         token = str(dbReturn['token'])
     else:
         token = tokenManager.generateToken(u, p)
-        print(token)
-        print(type(token))
+        # print(token)
+        # print(type(token))
         dbe('users', 'update', [{'username': u}, {'$set': {'token': token}}])
 
     return token

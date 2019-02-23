@@ -39,9 +39,11 @@ def elmtest():
     return j({"username": request.get_json()['username']})
 
 
-@app.route(apipath2 + 'login_db', methods=['POST'])
-def api_login_db():
+@app.route(apipath2 + 'login', methods=['POST'])
+def api_login():
     data = request.get_json()
+    print('login')
+    print(data)
     if 'username' in data and 'password' in data:
         u = data['username']
         p = data['password']
@@ -49,13 +51,16 @@ def api_login_db():
         return jFalse()
 
     token = databaseApi.login(u, p)
-    # print(token)
-    # print(type(token))
-    return jTrue({'token': token})
+    print('token')
+    print(token)
+    if token:
+        return jTrue({'token': token})
+    else:
+        return jFalse()
 
 
-@app.route(apipath2 + 'logout_db', methods=['POST'])
-def api_logout_db():
+@app.route(apipath2 + 'logout', methods=['POST'])
+def api_logout():
     if 'token' in request.get_json():
         token = request.get_json()['token']
     else:
@@ -67,8 +72,8 @@ def api_logout_db():
         return jFalse()
 
 
-@app.route(apipath2 + 'loggedin_db', methods=['POST'])
-def loggedin_db():
+@app.route(apipath2 + 'loggedin', methods=['POST'])
+def loggedin():
     if 'token' in request.get_json():
         token = request.get_json()['token']
     else:
@@ -111,12 +116,16 @@ def loggedin_session():
 @app.route(apipath2 + 'get/<component>', methods=['POST'])
 @app.route(apipath2 + 'get/<component>/<key>', methods=['POST'])
 def get(component=None, key=None):
-    success = True
-    _request = request.get_json()
+    # success = True
+    data = request.get_json()
 
-    if 'username' in _request:
-        username = _request['username']
+    if 'username' in data and 'token' in data:
+        username = data['username']
+        token = data['username']
     else:
+        return jFalse()
+
+    if not databaseApi.auth(token):
         return jFalse()
 
     if not component:

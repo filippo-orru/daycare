@@ -27,9 +27,10 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init () =
-    ( { loginState = LoggedOut
-      , loadingState = Idle
+    ( { loginState = LoginStateLoggedOut
+      , loadingState = LoadStateIdle
       , username = ""
+      , password = ""
       , user = Nothing
       }
     , Cmd.none
@@ -45,111 +46,188 @@ subscriptions model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        LoadUser username password ->
-            ( { model | loadingState = Loading }, loadUser username password )
-
-        LoadedUser result ->
+        UserLoginResponded result ->
             case result of
-                Ok user ->
-                    ( { model
-                        | loadingState = Success
-                        , loginState = LoggedIn
-                        , user = Just user
-                      }
-                    , Cmd.none
-                    )
+                Ok loginResponse ->
+                    if loginResponse.success == True then
+                        case loginResponse.token of
+                            Just token ->
+                                -- case token of
+                                --     Just
+                                ( { model | loginState = LoginStateLoggedIn token }
+                                , loadUser model
+                                )
+
+                            -- else
+                            --     ( { model | loginState = LoginStateFail Nothing }, Cmd.none )
+                            Nothing ->
+                                ( { model | loginState = LoginStateFail Nothing }, Cmd.none )
+
+                    else
+                        ( { model | loginState = LoginStateFail Nothing }, Cmd.none )
 
                 Err error ->
-                    ( { model | loadingState = Failure error }, Cmd.none )
+                    ( { model | loginState = LoginStateFail (Just error) }, Cmd.none )
 
-        SetUsername username ->
-            ( { model | username = username }, Cmd.none )
+        UserLoadResponded result ->
+            case result of
+                Ok loadResponse ->
+                    if loadResponse.success == True then
+                        case loadResponse.user of
+                            Just content ->
+                                ( { model | loadingState = LoadStateSuccess, user = Just content }
+                                , Cmd.none
+                                )
+
+                            Nothing ->
+                                ( { model | loadingState = LoadStateFail Nothing }, Cmd.none )
+
+                    else
+                        ( { model | loadingState = LoadStateFail Nothing }, Cmd.none )
+
+                Err _ ->
+                    ( { model | loadingState = LoadStateFail Nothing }, Cmd.none )
+
+        SetUsername u ->
+            ( { model | username = u }, Cmd.none )
+
+        SetPassword p ->
+            ( { model | password = p }, Cmd.none )
 
         Login ->
             ( model, login model )
+
+        UserLoginStateReset ->
+            ( { model
+                | loginState = LoginStateLoggedOut
+                , loadingState = LoadStateIdle
+              }
+            , Cmd.none
+            )
+
+
+loadUser : Model -> Cmd Msg
+loadUser model =
+    let
+        username =
+            model.username
+
+        password =
+            model.password
+    in
+    Http.post
+        { url = "http://127.0.0.1:5000/api/v2/get/user"
+        , body = Http.jsonBody (userIdentEncoder model)
+        , expect =
+            Http.expectJson UserLoadResponded userResponseDecoder
+        }
+
+
+login : Model -> Cmd Msg
+login model =
+    let
+        username =
+            model.username
+
+        password =
+            model.password
+    in
+    Http.post
+        { url = "http://127.0.0.1:5000/api/v2/login"
+        , body = Http.jsonBody (userIdentEncoder model)
+        , expect =
+            Http.expectJson UserLoginResponded loginResponseDecoder
+        }
 
 
 view : Model -> Html Msg
 view model =
     case model.loginState of
-        LoggedIn ->
+        LoginStateLoggedIn _ ->
             loggedInViewGenerate model
 
-        LoggedOut ->
+        LoginStateLoggedOut ->
             case model.loadingState of
-                Failure _ ->
-                    text "error logging you in"
+                LoadStateFail _ ->
+                    div []
+                        [ text "Weird Error. Shouldn't happen."
+                        , button [ onClick UserLoginStateReset ] [ text "retry" ]
+                        ]
 
-                Loading ->
+                LoadStateSuccess ->
+                    div []
+                        [ text "Weird Error. Shouldn't happen."
+                        , button [ onClick UserLoginStateReset ] [ text "retry" ]
+                        ]
+
+                LoadStateLoading ->
                     text "Logging you in..."
 
-                Success ->
-                    text "there is some fucking mismatch in the model states"
-
-                Idle ->
+                LoadStateIdle ->
                     div []
-                        [ text "not logged in"
+                        [ text "not logged in. "
                         , div []
-                            [ input [ type_ "text", value model.username, onInput SetUsername, placeholder "username" ] []
+                            [ input
+                                [ type_ "text"
+                                , value model.username
+                                , onInput SetUsername
+                                , placeholder "username"
+                                ]
+                                []
+                            , input
+                                [ type_ "text"
+                                , value model.password
+                                , onInput SetPassword
+                                , placeholder "password"
+                                ]
+                                []
                             , button [ onClick Login ] [ text "login" ]
                             ]
                         ]
 
+        LoginStateFail error ->
+            div []
+                [ text "Error while logging you in. "
+                , let
+                    error_ =
+                        case error of
+                            Just e ->
+                                Debug.toString error
 
-loadUser : String -> String -> Cmd Msg
-loadUser username password =
-    Http.post
-        { url = "http://127.0.0.1:5000/api/v2/get/user"
-        , body = Http.jsonBody (userIdent username password)
-        , expect =
-            Http.expectJson LoadedUser userResponseDecoder
-        }
+                            Nothing ->
+                                ""
+                  in
+                  case String.length <| error_ of
+                    0 ->
+                        text "Wrong password? "
 
-
-
--- login : Model -> model
-
-
-login model =
-    let
-        username =
-            model.username
-    in
-    loadUser username ""
+                    _ ->
+                        div []
+                            [ text ("Unknown Error!\n\n" ++ Debug.toString error_)
+                            , text ("token: " ++ Debug.toString model.loginState)
+                            ]
+                , button [ onClick UserLoginStateReset ] [ text "retry" ]
+                ]
 
 
 loggedInViewGenerate : Model -> Html msg
 loggedInViewGenerate model =
     div [ class "main" ]
-        [ text "logged in"
-        , div [ class "sidebar" ]
+        [ div [ class "sidebar" ]
             (sidebarViewGenerate model)
 
         -- []
         , div [ class "planner" ]
             -- []
-            [ plannerViewGenerate
-                model
-            ]
+            (plannerViewGenerate model)
+
+        -- , div []
+        --     [ text ("LogInState:" ++ Debug.toString model.loginState) ]
         ]
 
 
 sidebarViewGenerate : Model -> List (Html msg)
 sidebarViewGenerate model =
-    -- let
-    --     user =
-    --         case model.user of
-    --             Just user_ ->
-    --                 user_
-    --             _ ->
-    --                 Nothing
-    -- in
-    -- let
-    --     localusername =
-    --         user.username
-    --     localpassword =
-    --         user.password
-    -- in
     case model.user of
         Just user ->
             [ div [ class "head" ]
@@ -182,29 +260,29 @@ sidebarViewGenerate model =
             ]
 
         Nothing ->
-            [ text "no user data" ]
+            [ text "Sidebar: no user data to show" ]
 
 
-plannerViewGenerate : Model -> Html msg
+plannerViewGenerate : Model -> List (Html msg)
 plannerViewGenerate model =
     case model.loadingState of
-        Loading ->
-            text "UserLoading..."
+        LoadStateLoading ->
+            [ text "UserLoading..." ]
 
-        Failure error ->
-            text (Debug.toString error)
+        LoadStateFail error ->
+            [ text (Debug.toString error) ]
 
         --"Failed to load data. Reload"
-        Success ->
+        LoadStateSuccess ->
             case model.user of
                 Just user ->
-                    text ("Welcome " ++ user.username)
+                    [ text ("Welcome " ++ user.username) ]
 
                 Nothing ->
-                    text ""
+                    [ text "Planner: Load Successful but no user data" ]
 
         _ ->
-            text ""
+            [ text "" ]
 
 
 

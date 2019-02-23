@@ -1,4 +1,30 @@
-module DaycareTypesDecoders exposing (Date, Day, LoadingState(..), LoginState(..), Model, Msg(..), Name, Task, UTime, User, User2, UserID, UserResponse, setLoadingState, setLoginState, setUsername, testJson, testResponseDecoder, userDecoder, userIdent, userResponseDecoder)
+module DaycareTypesDecoders exposing
+    ( Attribute
+    , Date
+    , Day
+    , Goal
+    , Model
+    , Msg(..)
+    , Name
+    , Task
+    , UTime
+    , User
+    , User2
+    , UserID
+    , UserLoadResponse
+    , UserLoadingState(..)
+    , UserLoginResponse
+    , UserLoginState(..)
+    , attributeDecoder
+    , goalDecoder
+    , loginResponseDecoder
+    , setLoadingState
+    , setLoginState
+    , setUsername
+    , userDecoder
+    , userIdentEncoder
+    , userResponseDecoder
+    )
 
 import Dict exposing (Dict)
 import Http exposing (Error)
@@ -7,35 +33,40 @@ import Json.Encode as E
 
 
 type alias Model =
-    { loginState : LoginState
-    , loadingState : LoadingState
+    { loginState : UserLoginState
+    , loadingState : UserLoadingState
     , username : String
+    , password : String
     , user : Maybe User2
     }
 
 
-type LoginState
-    = LoggedIn
-    | LoggedOut
+type Msg
+    = UserLoadResponded (Result Http.Error UserLoadResponse)
+      -- = LoadUser String String
+    | Login
+    | SetUsername String
+    | SetPassword String
+    | UserLoginResponded (Result Http.Error UserLoginResponse)
+    | UserLoginStateReset
 
 
-type LoadingState
-    = Loading
-    | Success
-    | Failure Http.Error
-    | Idle
+type UserLoginState
+    = LoginStateLoggedIn String -- token
+    | LoginStateLoggedOut
+    | LoginStateFail (Maybe Http.Error)
+
+
+type UserLoadingState
+    = LoadStateLoading
+    | LoadStateSuccess
+    | LoadStateFail (Maybe Http.Error)
+    | LoadStateIdle
 
 
 
 -- type alias FormState =
 --     { username : String }
-
-
-type Msg
-    = LoadUser String String
-    | LoadedUser (Result Http.Error User2)
-    | Login
-    | SetUsername String
 
 
 type alias UTime =
@@ -85,6 +116,12 @@ type alias Attribute =
     }
 
 
+type alias UserID =
+    { username : String
+    , password : String
+    }
+
+
 type alias User2 =
     { sid : Int
     , username : String
@@ -122,16 +159,31 @@ type alias User =
     }
 
 
+type alias UserLoadResponse =
+    { success : Bool
+    , user : Maybe User2
+    }
 
+
+type alias UserLoginResponse =
+    { success : Bool
+    , token : Maybe String
+    }
+
+
+
+-- type Success
+--     = Successful
+--     | Unsuccessful
 -- setters
 
 
-setLoadingState : Model -> LoadingState -> Model
+setLoadingState : Model -> UserLoadingState -> Model
 setLoadingState model state =
     { model | loadingState = state }
 
 
-setLoginState : Model -> LoginState -> Model
+setLoginState : Model -> UserLoginState -> Model
 setLoginState model state =
     { model | loginState = state }
 
@@ -163,53 +215,74 @@ attributeDecoder =
     D.map3 Attribute
         (D.field "name" D.string)
         (D.field "short" D.string)
-        (D.field "description" D.string)
+        (D.field "description" (D.nullable D.string))
 
 
 goalDecoder : D.Decoder Goal
+goalDecoder =
+    D.map3 Goal
+        (D.field "name" D.string)
+        (D.field "description" (D.nullable D.string))
+        (D.field "deadline" (D.nullable D.string))
 
 
-goalDeocder =
-    D.map2 Goal
-        (D.field "description")
+loginResponseDecoder : D.Decoder UserLoginResponse
+loginResponseDecoder =
+    D.map2 UserLoginResponse
+        (D.field "success" D.bool)
+        (D.maybe (D.field "token" D.string))
 
 
-
--- responseDecoder : D.Decoder Dict.Dict String (String|User2)
-
-
-type alias UserResponse =
-    { success : String
-    , content : User2
-    }
-
-
-userResponseDecoder : D.Decoder User2
+userResponseDecoder : D.Decoder UserLoadResponse
 userResponseDecoder =
-    -- D.map2 UserResponse
-    -- (D.field "success" D.string)
-    D.field "content" userDecoder
+    D.map2 UserLoadResponse
+        (D.field "success" D.bool)
+        (D.field "content" (D.maybe userDecoder))
 
 
-type alias UserID =
-    { username : String
-    , password : String
-    }
+userIdentEncoder : Model -> E.Value
+userIdentEncoder model =
+    let
+        username =
+            model.username
 
+        password =
+            model.password
 
-userIdent : String -> String -> E.Value
-userIdent username password =
+        token =
+            case model.loginState of
+                LoginStateLoggedIn token_ ->
+                    token_
+
+                _ ->
+                    ""
+    in
     E.object
         [ ( "username", E.string username )
         , ( "password", E.string password )
+        , ( "token", E.string token )
         ]
 
 
-testJson : String -> E.Value
-testJson username =
-    E.object [ ( "username", E.string username ) ]
 
-
-testResponseDecoder : D.Decoder String
-testResponseDecoder =
-    D.field "username" D.string
+-- "token")
+-- successLoginDecoder success =
+--     D.field "token" D.string
+-- successDecoder : String -> a -> b -> Bool -> D.Decoder b
+-- successDecoder field successRes failRes success =
+--     case success of
+--         True ->
+--             ( D.succeed successRes
+--             , D.field "token" D.string
+--             )
+--         False ->
+--             D.succeed failRes
+-- D.map2 UserLoginSuccess
+--     (D.field "")
+-- successfulDecoder : Bool -> D.Decoder Success
+-- successfulDecoder success =
+--     case success of
+--         True ->
+--             D.succeed Successful
+--         False ->
+--             D.succeed Unsuccessful
