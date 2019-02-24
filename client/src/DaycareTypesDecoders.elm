@@ -22,7 +22,8 @@ module DaycareTypesDecoders exposing
     , setLoginState
     , setUsername
     , userDecoder
-    , userIdentEncoder
+    , userLoadEncoder
+    , userLoginEncoder
     , userResponseDecoder
     )
 
@@ -37,17 +38,16 @@ type alias Model =
     , loadingState : UserLoadingState
     , username : String
     , password : String
-    , user : Maybe User2
     }
 
 
 type Msg
     = UserLoadResponded (Result Http.Error UserLoadResponse)
+    | UserLoginResponded (Result Http.Error UserLoginResponse)
       -- = LoadUser String String
     | Login
     | SetUsername String
     | SetPassword String
-    | UserLoginResponded (Result Http.Error UserLoginResponse)
     | UserLoginStateReset
 
 
@@ -58,10 +58,10 @@ type UserLoginState
 
 
 type UserLoadingState
-    = LoadStateLoading
-    | LoadStateSuccess
+    = LoadStateIdle
+    | LoadStateLoading
+    | LoadStateSuccess User2 -- user
     | LoadStateFail (Maybe Http.Error)
-    | LoadStateIdle
 
 
 
@@ -127,6 +127,7 @@ type alias User2 =
     , username : String
     , password : String
     , attributes : List Attribute
+    , goals : List Goal
     }
 
 
@@ -203,11 +204,12 @@ setUsername model username =
 
 userDecoder : D.Decoder User2
 userDecoder =
-    D.map4 User2
+    D.map5 User2
         (D.field "sid" D.int)
         (D.field "username" D.string)
         (D.field "password" D.string)
         (D.field "attributes" (D.list attributeDecoder))
+        (D.field "goals" (D.list goalDecoder))
 
 
 attributeDecoder : D.Decoder Attribute
@@ -240,28 +242,20 @@ userResponseDecoder =
         (D.field "content" (D.maybe userDecoder))
 
 
-userIdentEncoder : Model -> E.Value
-userIdentEncoder model =
-    let
-        username =
-            model.username
-
-        password =
-            model.password
-
-        token =
-            case model.loginState of
-                LoginStateLoggedIn token_ ->
-                    token_
-
-                _ ->
-                    ""
-    in
+userLoginEncoder : String -> String -> E.Value
+userLoginEncoder u p =
     E.object
-        [ ( "username", E.string username )
-        , ( "password", E.string password )
-        , ( "token", E.string token )
+        [ ( "username", E.string u )
+        , ( "password", E.string p )
         ]
+
+
+userLoadEncoder : String -> E.Value
+userLoadEncoder token =
+    E.object
+        -- [ ( "username", E.string username )
+        -- , ( "password", E.string password )
+        [ ( "token", E.string token ) ]
 
 
 

@@ -41,12 +41,21 @@ def logout(token):
     return True
 
 
-def auth(token):
-    try:
-        dbReturn = dbe('users', 'find', {'token': token})['dbReturn'][0]
+def auth(token, username=None):
+    if username:
+        try:
+            dbReturn = dbe('users', 'find', {
+                'token': token,
+                'username': username
+            })['dbReturn'][0]
+        except IndexError:
+            return False
+    else:
+        try:
+            dbReturn = dbe('users', 'find', {'token': token})['dbReturn'][0]
 
-    except IndexError:
-        return False
+        except IndexError:
+            return False
 
     if len(dbReturn) > 0:
         return dbReturn['username']

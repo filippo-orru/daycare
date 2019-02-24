@@ -31,7 +31,6 @@ init () =
       , loadingState = LoadStateIdle
       , username = ""
       , password = ""
-      , user = Nothing
       }
     , Cmd.none
       --, loadUser "fefe" "123456"
@@ -55,7 +54,7 @@ update msg model =
                                 -- case token of
                                 --     Just
                                 ( { model | loginState = LoginStateLoggedIn token }
-                                , loadUser model
+                                , loadUser token
                                 )
 
                             -- else
@@ -75,7 +74,7 @@ update msg model =
                     if loadResponse.success == True then
                         case loadResponse.user of
                             Just content ->
-                                ( { model | loadingState = LoadStateSuccess, user = Just content }
+                                ( { model | loadingState = LoadStateSuccess content }
                                 , Cmd.none
                                 )
 
@@ -106,37 +105,30 @@ update msg model =
             )
 
 
-loadUser : Model -> Cmd Msg
-loadUser model =
-    let
-        username =
-            model.username
-
-        password =
-            model.password
-    in
-    Http.post
-        { url = "http://127.0.0.1:5000/api/v2/get/user"
-        , body = Http.jsonBody (userIdentEncoder model)
-        , expect =
-            Http.expectJson UserLoadResponded userResponseDecoder
-        }
-
-
 login : Model -> Cmd Msg
 login model =
     let
-        username =
+        u =
             model.username
 
-        password =
+        p =
             model.password
     in
     Http.post
         { url = "http://127.0.0.1:5000/api/v2/login"
-        , body = Http.jsonBody (userIdentEncoder model)
+        , body = Http.jsonBody (userLoginEncoder u p)
         , expect =
             Http.expectJson UserLoginResponded loginResponseDecoder
+        }
+
+
+loadUser : String -> Cmd Msg
+loadUser token =
+    Http.post
+        { url = "http://127.0.0.1:5000/api/v2/get/user"
+        , body = Http.jsonBody (userLoadEncoder token)
+        , expect =
+            Http.expectJson UserLoadResponded userResponseDecoder
         }
 
 
@@ -154,7 +146,7 @@ view model =
                         , button [ onClick UserLoginStateReset ] [ text "retry" ]
                         ]
 
-                LoadStateSuccess ->
+                LoadStateSuccess _ ->
                     div []
                         [ text "Weird Error. Shouldn't happen."
                         , button [ onClick UserLoginStateReset ] [ text "retry" ]
@@ -228,8 +220,8 @@ loggedInViewGenerate model =
 
 sidebarViewGenerate : Model -> List (Html msg)
 sidebarViewGenerate model =
-    case model.user of
-        Just user ->
+    case model.loadingState of
+        LoadStateSuccess user ->
             [ div [ class "head" ]
                 [ h2 [ class "sidebar-header" ]
                     [ text "daycare" ]
@@ -247,20 +239,18 @@ sidebarViewGenerate model =
                 [ h3 []
                     [ text "goals" ]
                 , ul [ class "goals-list" ]
-                    [ li [ class "lifegoal" ]
-                        [ text "test1" ]
-                    , li [ class "lifegoal" ]
-                        [ text "test2" ]
-                    , li [ class "lifegoal" ]
-                        [ text "test23" ]
-                    , li [ class "lifegoal" ]
-                        [ text "test3" ]
-                    ]
+                    -- [ li [ class "lifegoal" ]
+                    (List.map
+                        (\a -> li [] [ text a.name ])
+                        user.goals
+                    )
+
+                -- [ text "test1" ]
                 ]
             ]
 
-        Nothing ->
-            [ text "Sidebar: no user data to show" ]
+        _ ->
+            [ text "weird error" ]
 
 
 plannerViewGenerate : Model -> List (Html msg)
@@ -273,14 +263,13 @@ plannerViewGenerate model =
             [ text (Debug.toString error) ]
 
         --"Failed to load data. Reload"
-        LoadStateSuccess ->
-            case model.user of
-                Just user ->
-                    [ text ("Welcome " ++ user.username) ]
+        LoadStateSuccess user ->
+            -- case model.user of
+            --     Just user ->
+            [ text ("Welcome " ++ user.username) ]
 
-                Nothing ->
-                    [ text "Planner: Load Successful but no user data" ]
-
+        -- Nothing ->
+        -- [ text "Planner: Load Successful but no user data" ]
         _ ->
             [ text "" ]
 

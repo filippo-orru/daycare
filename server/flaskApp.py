@@ -18,7 +18,7 @@ app.secret_key = b'ctigsrehulyauul'
 
 
 @app.route('/')
-def index():
+def index():  # required data: -/-
     dt = datetime.now().strftime('%d.%m.%Y')
     # date = "{0}.{1}.{2}".format(dt.day, dt.month, dt.year)
     date = dt
@@ -34,15 +34,10 @@ apipath2 = '/api/v2/'
 # newapi
 
 
-@app.route('/elmtest', methods=['POST'])
-def elmtest():
-    return j({"username": request.get_json()['username']})
-
-
 @app.route(apipath2 + 'login', methods=['POST'])
-def api_login():
+def api_login():  # required data: username, pw
     data = request.get_json()
-    print('login')
+    print('login request with data:')
     print(data)
     if 'username' in data and 'password' in data:
         u = data['username']
@@ -51,7 +46,7 @@ def api_login():
         return jFalse()
 
     token = databaseApi.login(u, p)
-    print('token')
+    print('token as response to login request:')
     print(token)
     if token:
         return jTrue({'token': token})
@@ -60,7 +55,7 @@ def api_login():
 
 
 @app.route(apipath2 + 'logout', methods=['POST'])
-def api_logout():
+def api_logout():  # required data: token
     if 'token' in request.get_json():
         token = request.get_json()['token']
     else:
@@ -73,7 +68,7 @@ def api_logout():
 
 
 @app.route(apipath2 + 'loggedin', methods=['POST'])
-def loggedin():
+def loggedin():  # required data: token
     if 'token' in request.get_json():
         token = request.get_json()['token']
     else:
@@ -84,48 +79,26 @@ def loggedin():
     return jTrue({"loggedin": auth})
 
 
-@app.route(apipath2 + 'login_session', methods=['POST'])
-def api_login_session():
-    token = tokenManager.addToken(session, request)
-
-    if token:
-        session['user'] = {'token': token}
-        return jTrue({'token': token})
-    else:
-        return jFalse()
-
-
-@app.route(apipath2 + 'logout_session', methods=['POST'])
-def api_logout_session():
-
-    if tokenManager.auth(request, session):
-        session.pop('user')
-        return jTrue()
-    else:
-        return jFalse()
-
-
-@app.route(apipath2 + 'loggedin_session', methods=['POST'])
-def loggedin_session():
-    auth = tokenManager.auth(request, session)
-
-    return jTrue({"loggedin": auth})
-
-
 @app.route(apipath2 + 'get', methods=['POST'])
 @app.route(apipath2 + 'get/<component>', methods=['POST'])
 @app.route(apipath2 + 'get/<component>/<key>', methods=['POST'])
-def get(component=None, key=None):
+def get(component=None, key=None):  # required data: token
     # success = True
     data = request.get_json()
+    print('get request with data:(need token)')
+    print(data)
 
-    if 'username' in data and 'token' in data:
-        username = data['username']
-        token = data['username']
+    if 'token' in data:
+        token = data['token']
+    # elif 'username' in data:
+    #     username = data['username']
     else:
+        print('no token')
         return jFalse()
 
-    if not databaseApi.auth(token):
+    username = databaseApi.auth(token)
+    if not username:
+        print('invalid token')
         return jFalse()
 
     if not component:
@@ -133,12 +106,14 @@ def get(component=None, key=None):
 
     content = databaseApi.get(*cleanList(username, component, key))
     if not content:
+
         return jFalse()
 
     return jTrue({"content": content})
 
 
 def jFalse():
+    print('returning false (unsuccessful)')
     return j({'success': False})
 
 
