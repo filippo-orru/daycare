@@ -17,14 +17,14 @@ module DaycareTypesDecoders exposing
     , UserLoginState(..)
     , attributeDecoder
     , goalDecoder
-    , loginResponseDecoder
     , setLoadingState
     , setLoginState
     , setUsername
     , userDecoder
     , userLoadEncoder
+    , userLoadResponseDecoder
     , userLoginEncoder
-    , userResponseDecoder
+    , userLoginResponseDecoder
     )
 
 import Dict exposing (Dict)
@@ -204,12 +204,13 @@ setUsername model username =
 
 userDecoder : D.Decoder User2
 userDecoder =
-    D.map5 User2
+    D.map6 User2
         (D.field "sid" D.int)
         (D.field "username" D.string)
         (D.field "password" D.string)
         (D.field "attributes" (D.list attributeDecoder))
         (D.field "goals" (D.list goalDecoder))
+        (D.field "days" daysDecoder)
 
 
 attributeDecoder : D.Decoder Attribute
@@ -217,29 +218,37 @@ attributeDecoder =
     D.map3 Attribute
         (D.field "name" D.string)
         (D.field "short" D.string)
-        (D.field "description" (D.nullable D.string))
+        (D.maybe (D.field "description" D.string))
 
 
 goalDecoder : D.Decoder Goal
 goalDecoder =
     D.map3 Goal
         (D.field "name" D.string)
-        (D.field "description" (D.nullable D.string))
-        (D.field "deadline" (D.nullable D.string))
+        (D.maybe (D.field "description" D.string))
+        (D.maybe (D.field "deadline" D.string))
+
+daysDecoder =
+    let
+        l=  (D.field 
+
+dayDecoder : D.Decoder Day
+dayDecoder =
+    D.map3 Day
 
 
-loginResponseDecoder : D.Decoder UserLoginResponse
-loginResponseDecoder =
+userLoginResponseDecoder : D.Decoder UserLoginResponse
+userLoginResponseDecoder =
     D.map2 UserLoginResponse
         (D.field "success" D.bool)
         (D.maybe (D.field "token" D.string))
 
 
-userResponseDecoder : D.Decoder UserLoadResponse
-userResponseDecoder =
+userLoadResponseDecoder : D.Decoder UserLoadResponse
+userLoadResponseDecoder =
     D.map2 UserLoadResponse
         (D.field "success" D.bool)
-        (D.field "content" (D.maybe userDecoder))
+        (D.maybe (D.field "content" userDecoder))
 
 
 userLoginEncoder : String -> String -> E.Value

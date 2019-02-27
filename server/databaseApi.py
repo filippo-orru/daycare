@@ -1,66 +1,86 @@
 from bson.json_util import dumps, loads
 # import bson.json_util
-from tools import databaseConnection, actions, tokenManager
+from tools import databaseConnection, actions, tokenM, passwordM
 import json
 
 dbe = databaseConnection.executeMDb
 
 
 def login(u, p):
-    dbReturn = dbe('users', 'find', {'username': u, 'password': p})['dbReturn']
+    dbReturn = authUser(u, p)
 
-    try:
-        dbReturn = dbReturn[0]
-    except IndexError:
+    if not dbReturn:
         return False
 
     if 'token' in dbReturn:
         token = str(dbReturn['token'])
     else:
-        token = tokenManager.generateToken(u, p)
-        # print(token)
-        # print(type(token))
+        token = tokenM.generate()
         dbe('users', 'update', [{'username': u}, {'$set': {'token': token}}])
 
     return token
 
 
-def logout(token):
-    username = auth(token)
-    if username:
-        token = ""
+def logout(u, p):
+    if not authUser(u, p):
+        return False
+
+    try:
         dbe('users', 'update', [{
             'username': username
         }, {
             '$set': {
-                'token': token
+                'token': ""
             }
         }])
-    else:
+    except IndexError:
         return False
+
     return True
 
 
-def auth(token, username=None):
-    if username:
-        try:
-            dbReturn = dbe('users', 'find', {
-                'token': token,
-                'username': username
-            })['dbReturn'][0]
-        except IndexError:
-            return False
-    else:
-        try:
-            dbReturn = dbe('users', 'find', {'token': token})['dbReturn'][0]
+def register(u, p):
+    pass
 
-        except IndexError:
-            return False
 
-    if len(dbReturn) > 0:
+def authUser(u, p):
+    dbReturn = dbe('users', 'find', {'username': u})
+    if not dbReturn:
+        return False
+
+    try:
+        dbReturn = dbReturn['dbReturn'][0]
+    except IndexError:
+        return False
+    except KeyError:
+        return False
+
+    if passwordM.verify(p, dbReturn['password']):  # pw correct
         return dbReturn['username']
     else:
         return False
+
+
+def authToken(token, username=None):
+    ''' Takes token and optional username and
+    outputs username if token and/or username match
+    '''
+
+    try:
+        dbReturn = dbe('users', 'find', {'token': token})['dbReturn'][0]
+    except IndexError:
+        return False
+    if not len(dbReturn) > 0:
+        return False
+
+    serverUsername = dbReturn['username']
+    if username:
+        if serverUsername == username:
+            return serverUsername
+        else:
+            return False
+    else:
+        return serverUsername
 
 
 def get(username, component, key=None):  #, _id=-1):
@@ -69,7 +89,6 @@ def get(username, component, key=None):  #, _id=-1):
     return: python object -> loads(dumps(pymongo.cursor.return))
     '''
 
-    success = True
     if component not in [
             'settings', 'attributes', 'categories', 'activities', 'goals',
             'days', 'user'
@@ -80,23 +99,19 @@ def get(username, component, key=None):  #, _id=-1):
 
     if component != 'user':
         servercontent = servercontent[component]
+        # print('servercontent')
+        # print(servercontent)
         # component defined -> go a level deeper
 
         if key:  # key defined
-            try:
-                key = int(key)
-            except ValueError:
-                pass
-
-            # print('type(key)')
-            # print(type(key))
-            # print('type(servercontent)')
-            # print(type(servercontent))
-            if (type(key) == int and type(servercontent) == list) \
-            or (type(key) == str and type(servercontent) == dict): # key defined and proper usage
-                servercontent = servercontent[key]
+            key = actions.keyOkay(key, servercontent)
+            if key:  # key proper usage
+                try:
+                    servercontent = servercontent[key]
+                except KeyError:
+                    return False
             else:  # key defined but improper usage
-                success = False
+                return False
 
     else:  # component = user -> pop problematic objectID index
         servercontent.pop('_id')
@@ -104,44 +119,71 @@ def get(username, component, key=None):  #, _id=-1):
     servercontent = json.loads(
         dumps(servercontent))  # convert content to bson and back to pyobj
 
-    if success:
-        return servercontent
-    else:
+    return servercontent
+
+
+def edit(username, component, usercontent, key=None, overwrite=False):
+    '''
+    input: str(username), str(component), str(usercontent),
+        opt str/int(key) opt overwrite(bool)
+    return: success: True/False
+    '''
+    print('username')
+    print(username)
+    servercontent = get(username, component)
+    if not servercontent:  # get returned error
         return False
 
+    if type(usercontent) == str:  # usercontent is json string
+        usercontent = loads(usercontent)  # bson -> dict
+    elif type(usercontent) == dict:  # usercontent already dict
+        pass
+    else:  # usercontent has invalid type
+        return False
 
-def edit(username, component, usercontent, overwrite=False):
-    '''
-    input: str(username), str(component), str(usercontent) -> bson-format
-    return: int(errorLevel) -> 0/_
-    '''
-    success = True
-    servercontent = get(username, component)  # bson -> pyobj
-    usercontent = loads(usercontent)  # bson -> pyobj
-    # both contents are now python objects
+    # both contents are python objects
 
     if overwrite:
         servercontent = usercontent
-    else:
-        for key in usercontent.keys():
 
-            if key not in servercontent.keys():
-                servercontent[key] = usercontent[key]
-            else:
-                servercontent[key].update(usercontent[key])
+    else:  # upsert in case of non-overwrite
+        if key:  # key defined
+            print('key')
+            print(key)
+            print('servercontent')
+            print(servercontent)
+            if key in servercontent:  # key in servercont
+                # contpart = servercontent[key]  # set contpart
+                if actions.keyOkay(key,
+                                   servercontent):  # key in scont -> update
+                    servercontent[key].update(usercontent)
 
-    dbe('users', 'update', [{
-        'username': username
-    }, {
-        '$set': {
-            component: servercontent
-        }
-    }])
+            else:  # key not in servercontent -> create new
+                servercontent[key] = usercontent
 
-    if success:
-        return True
-    else:
+        else:  # no key defined
+            for uKey in usercontent.keys():  # loop through dicts and upsert
+                if uKey not in servercontent.keys():
+                    # key not in scont -> create
+                    servercontent[uKey] = usercontent[uKey]
+                else:  # key in scont -> update
+                    servercontent[uKey].update(usercontent[key])
+
+    try:
+        print('updating ' + component + ' of ' + username)
+        print('New Content: ')
+        print(servercontent)
+        dbe('users', 'update', [{
+            'username': username
+        }, {
+            '$set': {
+                component: servercontent
+            }
+        }])
+    except:
         return False
+
+    return True
 
 
 def delete(component, identifier):
@@ -149,8 +191,3 @@ def delete(component, identifier):
 
 
 create = edit  # Create is alias for edit
-
-if __name__ == "__main__":
-    username = "fefe"
-    user = dbe('users', 'find', {'username': username})
-    print(user)

@@ -22,15 +22,15 @@ main =
 
 -- init : Model -> ( Model, Cmd Msg )
 -- init model =
---     ( setLoadingState model Loading, loadUser "fefe" "123456" )
+--   ( setLoadingState model Loading, loadUser "fefe" "123456" )
 
 
 init : () -> ( Model, Cmd Msg )
 init () =
     ( { loginState = LoginStateLoggedOut
       , loadingState = LoadStateIdle
-      , username = ""
-      , password = ""
+      , username = "fefe"
+      , password = "123456"
       }
     , Cmd.none
       --, loadUser "fefe" "123456"
@@ -52,13 +52,13 @@ update msg model =
                         case loginResponse.token of
                             Just token ->
                                 -- case token of
-                                --     Just
+                                --   Just
                                 ( { model | loginState = LoginStateLoggedIn token }
                                 , loadUser token
                                 )
 
                             -- else
-                            --     ( { model | loginState = LoginStateFail Nothing }, Cmd.none )
+                            --   ( { model | loginState = LoginStateFail Nothing }, Cmd.none )
                             Nothing ->
                                 ( { model | loginState = LoginStateFail Nothing }, Cmd.none )
 
@@ -72,6 +72,10 @@ update msg model =
             case result of
                 Ok loadResponse ->
                     if loadResponse.success == True then
+                        let
+                            _ =
+                                Debug.log "load success. User" (Debug.toString loadResponse.user)
+                        in
                         case loadResponse.user of
                             Just content ->
                                 ( { model | loadingState = LoadStateSuccess content }
@@ -118,7 +122,7 @@ login model =
         { url = "http://127.0.0.1:5000/api/v2/login"
         , body = Http.jsonBody (userLoginEncoder u p)
         , expect =
-            Http.expectJson UserLoginResponded loginResponseDecoder
+            Http.expectJson UserLoginResponded userLoginResponseDecoder
         }
 
 
@@ -128,7 +132,7 @@ loadUser token =
         { url = "http://127.0.0.1:5000/api/v2/get/user"
         , body = Http.jsonBody (userLoadEncoder token)
         , expect =
-            Http.expectJson UserLoadResponded userResponseDecoder
+            Http.expectJson UserLoadResponded userLoadResponseDecoder
         }
 
 
@@ -139,43 +143,7 @@ view model =
             loggedInViewGenerate model
 
         LoginStateLoggedOut ->
-            case model.loadingState of
-                LoadStateFail _ ->
-                    div []
-                        [ text "Weird Error. Shouldn't happen."
-                        , button [ onClick UserLoginStateReset ] [ text "retry" ]
-                        ]
-
-                LoadStateSuccess _ ->
-                    div []
-                        [ text "Weird Error. Shouldn't happen."
-                        , button [ onClick UserLoginStateReset ] [ text "retry" ]
-                        ]
-
-                LoadStateLoading ->
-                    text "Logging you in..."
-
-                LoadStateIdle ->
-                    div []
-                        [ text "not logged in. "
-                        , div []
-                            [ input
-                                [ type_ "text"
-                                , value model.username
-                                , onInput SetUsername
-                                , placeholder "username"
-                                ]
-                                []
-                            , input
-                                [ type_ "text"
-                                , value model.password
-                                , onInput SetPassword
-                                , placeholder "password"
-                                ]
-                                []
-                            , button [ onClick Login ] [ text "login" ]
-                            ]
-                        ]
+            loggedOutViewGenerate model
 
         LoginStateFail error ->
             div []
@@ -206,20 +174,17 @@ loggedInViewGenerate : Model -> Html msg
 loggedInViewGenerate model =
     div [ class "main" ]
         [ div [ class "sidebar" ]
-            (sidebarViewGenerate model)
+            (viewSidebar model)
 
         -- []
         , div [ class "planner" ]
             -- []
-            (plannerViewGenerate model)
-
-        -- , div []
-        --     [ text ("LogInState:" ++ Debug.toString model.loginState) ]
+            [ viewPlanner model ]
         ]
 
 
-sidebarViewGenerate : Model -> List (Html msg)
-sidebarViewGenerate model =
+viewSidebar : Model -> List (Html msg)
+viewSidebar model =
     case model.loadingState of
         LoadStateSuccess user ->
             [ div [ class "head" ]
@@ -230,10 +195,7 @@ sidebarViewGenerate model =
                 [ h3 []
                     [ text "frequent" ]
                 , ul [ class "frequent-list" ]
-                    (List.map
-                        (\a -> li [] [ text a.name ])
-                        user.attributes
-                    )
+                    []
                 ]
             , div [ class "sidebar-goals" ]
                 [ h3 []
@@ -250,48 +212,98 @@ sidebarViewGenerate model =
             ]
 
         _ ->
-            [ text "weird error" ]
+            [ text ("weird error. Loginstate: Success. LoadingState: " ++ Debug.toString model.loadingState) ]
 
 
-plannerViewGenerate : Model -> List (Html msg)
-plannerViewGenerate model =
+viewPlanner : Model -> Html msg
+viewPlanner model =
+    div []
+        [ text ""
+
+        -- [ text " -- Planner view -- "
+        , case model.loadingState of
+            LoadStateLoading ->
+                text "Loading user data..."
+
+            LoadStateFail error ->
+                text "Error"
+
+            LoadStateSuccess user ->
+                -- case model.user of
+                --   Just user ->
+                div []
+                    [ text ("Welcome " ++ user.username)
+
+                    -- Nothing ->
+                    -- [ text "Planner: Load Successful but no user data" ]
+                    -- TODO: implement list maps for day -> attributes, descripiton and then tasks
+                    , div
+                        [ class "days" ]
+                        [ ul [ class "days-list" ]
+                            (List.map viewDay user.days)
+                        ]
+                    ]
+
+            LoadStateIdle ->
+                text "Idle."
+        ]
+
+
+viewDay model =
+    li [ class "day" ]
+        [ div [ class "day-header" ]
+            [ h4 []
+                [ text "Monday, 13th of March 2015" ]
+            , div [ class "attributes" ]
+                [ ul [ class "attributes-list" ]
+                    [ li [ class "attribute" ]
+                        [ text "" ]
+                    , li [ class "attribute" ]
+                        [ text "" ]
+                    ]
+                ]
+            , p [ class "day-description" ]
+                [ text "Day was very good" ]
+            ]
+        ]
+
+
+loggedOutViewGenerate : Model -> Html Msg
+loggedOutViewGenerate model =
     case model.loadingState of
+        LoadStateFail _ ->
+            div []
+                [ text "Weird Error. Shouldn't happen."
+                , button [ onClick UserLoginStateReset ] [ text "retry" ]
+                ]
+
+        LoadStateSuccess _ ->
+            div []
+                [ text "Weird Error. Shouldn't happen."
+                , button [ onClick UserLoginStateReset ] [ text "retry" ]
+                ]
+
         LoadStateLoading ->
-            [ text "UserLoading..." ]
+            text "Logging you in..."
 
-        LoadStateFail error ->
-            [ text (Debug.toString error) ]
-
-        --"Failed to load data. Reload"
-        LoadStateSuccess user ->
-            -- case model.user of
-            --     Just user ->
-            [ text ("Welcome " ++ user.username) ]
-
-        -- Nothing ->
-        -- [ text "Planner: Load Successful but no user data" ]
-        _ ->
-            [ text "" ]
-
-
-
--- div [ class "days" ]
---     [ ul [ class "days-list" ]
---         [ li [ class "day" ]
---             [ div [ class "day-header" ]
---                 [ h4 []
---                     [ text "Monday, 13th of March 2015" ]
---                 , div [ class "attributes" ]
---                     [ ul [ class "attributes-list" ]
---                         [ li [ class "attribute" ]
---                             [ text "X" ]
---                         , li [ class "attribute" ]
---                             [ text "A" ]
---                         ]
---                     ]
---                 , p [ class "day-description" ]
---                     [ text "Day was very good" ]
---                 ]
---             ]
---         ]
---     ]
+        LoadStateIdle ->
+            div []
+                [ text "not logged in. "
+                , div []
+                    [ input
+                        [ type_ "text"
+                        , value model.username
+                        , onInput SetUsername
+                        , placeholder "username"
+                        ]
+                        []
+                    , input
+                        [ type_ "text"
+                        , value model.password
+                        , onInput SetPassword
+                        , placeholder "password"
+                        ]
+                        []
+                    , button [ onClick Login ] [ text "login" ]
+                    ]
+                ]

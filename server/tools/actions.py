@@ -101,8 +101,18 @@ def log(text, _type='Info'):
             uprint('[{}]: {}'.format(_type, text))
 
 
-def fileExists(path):
-    return os.path.exists(path)
+def fileExists(path, modpath=True):
+    if modpath:
+        return os.path.exists(modPath(path))
+    else:
+        return os.path.exists(path)
+
+
+def modPath(path):
+    if __name__ == "__main__":
+        return path
+    mypath = os.path.dirname(os.path.dirname(__file__))
+    return os.path.join(mypath, path)
 
 
 def readFrom(path):
@@ -216,6 +226,26 @@ def stringToInt(s):
         else:
             ii += 0
     return int(ii)
+
+
+def keyOkay(key, cont):
+    if key == None:
+        return None
+    if cont == None:
+        raise "Cont should have a value but doesnt"
+
+    try:
+        key = int(key)
+    except ValueError:
+        pass
+    except:
+        return False
+
+    if (type(key) == int and type(cont) == list) \
+    or (type(key) == str and type(cont) == dict):
+        return key
+    else:
+        return False
 
 
 if __name__ == "__main__":

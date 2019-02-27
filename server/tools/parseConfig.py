@@ -3,7 +3,7 @@ hasParsed = False
 configuraition = None
 
 
-def parse():
+def parse(path=None):
     global hasParsed
     global configuraition
 
@@ -13,13 +13,16 @@ def parse():
                 return readAndStoreOsVar(
                 )  # if running on server without config file
         else:
-            return readAndStoreConfig()
+            if path:
+                return readAndStoreConfig(path)
+            else:
+                raise "no path supplied"
     return configuraition
 
 
-def readAndStoreConfig():
+def readAndStoreConfig(path):
     config = configparser.ConfigParser()
-    config.read('databaseConfig.ini')
+    config.read(path)
     # print()
     return config
 

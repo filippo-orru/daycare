@@ -112,3 +112,4 @@ databaseConfig.ini
 bak/
 database/
 exampleuser.json
+testExecute.py

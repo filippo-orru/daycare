@@ -20,7 +20,7 @@ def ConnectionToDb():
     if connectedToDb == False:
         return connectToDb()
     else:
-        return 1
+        return True
 
 
 def connectToDb():
@@ -29,20 +29,23 @@ def connectToDb():
 
     # username = str(parse()['mlab']['username'])
     # password = urllib.parse.quote_plus(parse()['mlab']['password'])
+    # print(__name__)
+    path = actions.modPath('databaseConfig.ini')
 
-    if actions.fileExists('databaseConfig.ini'):
+    if actions.fileExists(path, False):
         if useLocalDatabase:
             actions.log('Using local database')
-            client = MongoClient(parseConfig.parse()['mongodb']['clientUrl'])
+            client = MongoClient(
+                parseConfig.parse(path)['mongodb']['clientUrl'])
         else:
             actions.log('Using remote database')
-            client = MongoClient(parseConfig.parse()['mlab']['clientUrl'])
+            client = MongoClient(parseConfig.parse(path)['mlab']['clientUrl'])
     else:
         actions.log('cant connect to db inner', 'Error')
-        return 0
+        return False
     db = client.get_database()
     connectedToDb = True
-    return 1
+    return True
 
 
 def executeMDb(database,
@@ -51,19 +54,25 @@ def executeMDb(database,
                rowCount=1,
                sortStr=None,
                ordered=True):
-    errorCode = 0  #0: undef | 1: success | 2: no valid action | 3: empty input string
+    errorCode = 1  #0: undef | 1: success | 2: no valid action | 3: empty input string
     dbReturn = None
     global db, useLocalDatabase
-    errorCode = ConnectionToDb()
-    if useLocalDatabase:
-        localString = 'local'
-    else:
-        localString = 'remote'
-    actions.log('Executing {0} on {1} db {2}.'.format(dbAction, localString,
-                                                      database))
+
+    if not ConnectionToDb():
+        return e(0)
+
+    # if useLocalDatabase:
+    #     localString = 'local'
+    # else:
+    #     localString = 'remote'
+
+    # actions.log('Executing {0} on {1} db {2}.'.format(dbAction, localString,
+    #
+    #                                                database))
+
     if errorCode == 0:
         actions.log('Cant connect to db', 'Error')
-        return {'errorCode': errorCode}
+        return e(errorCode)
     #print(dbAction)
     if mongoDbInput == None:  #or _input == ''
         errorCode = 3
@@ -108,7 +117,7 @@ def executeMDb(database,
     if dbReturn != None:
         return {'errorCode': errorCode, 'dbReturn': dbReturn}
     else:
-        return {'errorCode': errorCode}
+        return e(errorCode)
 
 
 def executeBulkMDb(database, dbInputList):  #, abAction
@@ -146,7 +155,7 @@ def executeBulkMDb(database, dbInputList):  #, abAction
     if dbReturn != None:
         return {'errorCode': errorCode, 'dbReturn': dbReturn}
     else:
-        return {'errorCode': errorCode}
+        return e(errorCode)
 
 
 def sanitizeInput(mongoDbInput):
@@ -161,6 +170,10 @@ def sanitizeInput(mongoDbInput):
         return mongoDbInputSane
     except:
         return mongoDbInput
+
+
+def e(code):
+    return {'errorCode': code}
 
 
 # print(executeMDb('chats','findChildren',{'nodeIndex':0})['dbReturn'][0])
