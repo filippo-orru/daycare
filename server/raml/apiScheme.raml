@@ -9,62 +9,269 @@ resourceTypes:
     description: Collection of <<resourcePathName>>
     get:
       description: Get all <<resourcePathName>>
+      queryString:
+        properties: <<getProperties>>
       responses:
         200:
           body:
-            # application/json: |
-            # 	<<getExample>>
+            application/json:
+              example: <<exampleResponse>>
+        401:
+          body:
+            application/json:
+              example: { "message": "No valid token was supplied" }
 
     post:
       description: Add new item to <<resourcePathName>>
+      queryParameters:
+        token:
+          description: Token needed to post
+          example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
+          required: true
+          type: string
+      body:
+        application/json:
+          type: <<resourcePathName|!singularize>>
+          example: <<exampleItem>>
       responses:
         201:
           body:
-            # application/json: |
-            # 	<<postExample>>
+            application/json:
+              example: <<exampleResponse>>
 
   collection-item:
-    description: Get a single item from <<resourcePathName>>
+    description: Entity representing <<resourcePathName|!singularize>> from <<resourcePathName>>
     get:
-      description: Get item with key from <<resourcePathName>>
+      description: Get <<resourcePathName|!singularize>> from <<resourcePathName>>
+      queryParameters:
+        token:
+          description: Token needed to post
+          example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
+          required: true
+          type: string
+      responses:
+        200:
+          body:
+            application/json:
+              example: <<exampleResponse>>
+        400:
+          body:
+            application/json:
+              example: |
+                { "message": "Bad Reqest. Could not delete <<resourcePathName|!singularize>>" }
+        404:
+          body:
+            application/json:
+              example: |
+                { "message": "Cannot find <<resourcePathName|!singularize>>" }
+
     put:
       description: Overwrite <<resourcePathName>>
+      queryParameters:
+        token:
+          description: Token needed to post
+          example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
+          required: true
+          type: string
+      responses:
+        200:
+          body:
+            application/json:
+              example: <<exampleResponse>>
+        400:
+          body:
+            application/json:
+              example: |
+                { "message": "Bad Reqest. Could not delete <<resourcePathName|!singularize>>" }
+        404:
+          body:
+            application/json:
+              example: { "message": "Cannot find item in <<resourcePathName>>" }
     patch:
       description: Update part of <<resourcePathName>>
+      queryParameters:
+        token:
+          description: Token needed to post
+          example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
+          required: true
+          type: string
+
+      responses:
+        200:
+          body:
+            application/json:
+              example: <<exampleResponse>>
+        400:
+          body:
+            application/json:
+              example: |
+                { "message": "Bad Reqest. Could not delete <<resourcePathName|!singularize>>" }
+        404:
+          body:
+            application/json:
+              example: { "message": "Cannot find item in <<resourcePathName>>" }
     delete:
       description: Delete item from <<resourcePathName>>
+      queryParameters:
+        token:
+          description: Token needed to post
+          example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
+          required: true
+          type: string
+      responses:
+        204:
+          description: Successful. Empty response
+        400:
+          body:
+            application/json:
+              example: |
+                { "message": "Bad Reqest. Could not delete <<resourcePathName|!singularize>>" }
+        401:
+          body:
+            application/json:
+              example: { "message": "No valid token was supplied" }
+        404:
+          body:
+            application/json:
+              example: { "message": "Cannot find item in <<resourcePathName>>" }
 /users:
   post:
     description: Add new user
-    
-    
+    queryParameters:
+      token:
+        description: Token needed to post
+        example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
+        required: true
+        type: string
+    responses:
+      body:
+        application/json:
+          example: |
+            {
+              "email": "filippoorru@hotmail.com",
+              "username": "ffactory",
+              "password": "123456"
+            }
+      201:
+        body:
+          application/json:
+            example: |
+              { 
+                "_id": "5c632a5b3ee0872e8571d9d4",
+                "email": "filippoorru@hotmail.com",
+                "username": "fefe"
+              }
+      400:
+        body:
+          application/json:
+            example: { "message": "Invalid parameters. Unable to create user." }
+
   /{user}:
     type:
       collection-item:
-        getExample: {"test":"test"}
-        postExample: {"post":"ree"}
-    post:
-      description: Register new user
+        exampleResponse: |
+          { 
+            "_id": "5c632a5b3ee0872e8571d9d4",
+            "email": "filippoorru@hotmail.com",
+            "username": "fefe"
+          }
+        deleteExampleResponse: {}
     /days:
-      type: collection
+      type:
+        collection:
+          exampleResponse: |
+            [{
+              "date": "12.02.2019",
+              "description": "Day was very good and fun haha",
+              "attributes": ["X","A","S"],
+              "tasks": [
+                {"name": "raus","state": "completed","time": {"start": "12: 45","end": "13: 10","pre": "10","post": "0"}},
+                {"name": "ethik","state": "todo","time": {"start": "00: 00","end": "23: 55","pre": "0","post": "0"}}
+              ]
+            }
+            ,
+            {
+              "date": "13.02.2019",
+              "description": "Day was very good and fun haha",
+              "attributes": ["X"],
+              "tasks": [
+                {"name": "mathe lernen","state": "todo","time": {"start": "12: 45","end": "13: 10","pre": "10","post": "0"}},
+                {"name": "lesen","state": "completed","time": {"start": "10: 00","end": "11: 00","pre": "0","post": "0"}}
+              ]
+            }]
+
       /{day}:
-        type: collection-item
-    /goal:
-      type: collection
+        type:
+          collection-item:
+            exampleResponse: |
+              {
+                "date": "12.02.2019",
+                "description": "Day was very good and fun haha",
+                "attributes": ["X","A","S"],
+                "tasks": [
+                  {"name": "raus","state": "completed","time": {"start": "12: 45","end": "13: 10","pre": "10","post": "0"}},
+                  {"name": "ethik","state": "todo","time": {"start": "00: 00","end": "23: 55","pre": "0","post": "0"}}
+                ]
+              }
+
+            deleteExampleResponse: {}
+    /goals:
+      type:
+        collection:
+          exampleResponse: |
+            [{
+              "name": "führerschein",
+              "description": "ich will führerschein machen",
+              "deadline": "2019-05-31T00:00:00.000Z"
+            }, {
+              "name": "daycare",
+              "description": "das proj fertig"
+            }]
+
       /{goal}:
-        type: collection-item
+        type:
+          collection-item:
+            exampleResponse: |
+              { "name": "daycare", "description": "das proj fertig" }
+            deleteExampleResponse: {}
     /attributes:
-      type: collection
+      type:
+        collection:
+          exampleResponse: {}
+
       /{attribute}:
-        type: collection-item
-    /activity:
-      type: collection
-      /{activities}:
-        type: collection-item
+        type:
+          collection-item:
+            exampleResponse: {}
+
+            deleteExampleResponse: {}
+    /activities:
+      type:
+        collection:
+          exampleResponse: {}
+
+      /{activity}:
+        type:
+          collection-item:
+            exampleResponse: {}
+            deleteExampleResponse: {}
     /settings:
-      type: collection
+      type:
+        collection:
+          exampleResponse: {}
       /{setting}:
-        type: collection-item
-    /username:
-    /email:
+        type:
+          collection-item:
+            exampleResponse: {}
+            deleteExampleResponse: {}
     /token:
+      post:
+        queryString:
+          parameters:
+            username: string
+            password: string
+        responses:
+          200:
+            body:
+              application/json:
+                example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
