@@ -1,0 +1,70 @@
+#%RAML 1.0
+---
+title: Daycare
+version: v1
+baseUri: "http://daycare.io/api/{version}"
+
+resourceTypes:
+  collection:
+    description: Collection of <<resourcePathName>>
+    get:
+      description: Get all <<resourcePathName>>
+      responses:
+        200:
+          body:
+            # application/json: |
+            # 	<<getExample>>
+
+    post:
+      description: Add new item to <<resourcePathName>>
+      responses:
+        201:
+          body:
+            # application/json: |
+            # 	<<postExample>>
+
+  collection-item:
+    description: Get a single item from <<resourcePathName>>
+    get:
+      description: Get item with key from <<resourcePathName>>
+    put:
+      description: Overwrite <<resourcePathName>>
+    patch:
+      description: Update part of <<resourcePathName>>
+    delete:
+      description: Delete item from <<resourcePathName>>
+/users:
+  post:
+    description: Add new user
+    
+    
+  /{user}:
+    type:
+      collection-item:
+        getExample: {"test":"test"}
+        postExample: {"post":"ree"}
+    post:
+      description: Register new user
+    /days:
+      type: collection
+      /{day}:
+        type: collection-item
+    /goal:
+      type: collection
+      /{goal}:
+        type: collection-item
+    /attributes:
+      type: collection
+      /{attribute}:
+        type: collection-item
+    /activity:
+      type: collection
+      /{activities}:
+        type: collection-item
+    /settings:
+      type: collection
+      /{setting}:
+        type: collection-item
+    /username:
+    /email:
+    /token:

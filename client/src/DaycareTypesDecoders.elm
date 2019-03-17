@@ -204,13 +204,16 @@ setUsername model username =
 
 userDecoder : D.Decoder User2
 userDecoder =
-    D.map6 User2
+    D.map5 User2
         (D.field "sid" D.int)
         (D.field "username" D.string)
         (D.field "password" D.string)
         (D.field "attributes" (D.list attributeDecoder))
         (D.field "goals" (D.list goalDecoder))
-        (D.field "days" daysDecoder)
+
+
+
+-- (D.field "days" daysDecoder)
 
 
 attributeDecoder : D.Decoder Attribute
@@ -228,13 +231,14 @@ goalDecoder =
         (D.maybe (D.field "description" D.string))
         (D.maybe (D.field "deadline" D.string))
 
-daysDecoder =
-    let
-        l=  (D.field 
 
-dayDecoder : D.Decoder Day
-dayDecoder =
-    D.map3 Day
+
+-- daysDecoder =
+--     let
+--         l=  (D.field
+-- dayDecoder : D.Decoder Day
+-- dayDecoder =
+--     D.map3 Day
 
 
 userLoginResponseDecoder : D.Decoder UserLoginResponse

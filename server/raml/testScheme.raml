@@ -1,0 +1,66 @@
+#%RAML 1.0
+---
+title: e-BookMobile API
+baseUri: http://api.e-bookmobile.com/{version}
+version: v1
+
+/users:
+	/authors:
+		/{authorname}:
+	/books:
+		get:
+			queryParameters:
+				author:
+					displayName: Author
+					type: string
+					description: An author's full name
+					example: Mary Roach
+					required: false
+				publicationYear:
+					displayName: Pub Year
+					type: Number
+					description: The year released for the first time in the Us 
+					example: 1984
+				rating:
+					displayName: Rating
+					type: number
+					description: Average rating (1-5) submitted by users
+					example: 3.14
+					required: false
+				isbn:
+					displayName: ISBN
+					type: string
+					minLength: 10
+					example: 0321736079
+		put:
+			queryParameters:
+				access_token:
+					displayName: Access token
+					type: string
+					description: the token giving you the permission to make the call
+					required: true
+
+		/{bookTitle}:
+			get:
+				description: Retrieve a specific book title
+				responses:
+					200:
+						body:
+							application/json:
+								example: |
+									{
+										"data": {
+											"id": "SbBGk",
+											"title": "Stiff: The Curious Lives of Human Cadavers",
+											"description": null,
+											"datetime": 1341533193,
+											"genre": "science",
+											"author": "Mary Roach",
+											"link": "http://e-bookmobile.com/books/Stiff"
+											
+			put:
+			delete:
+			/author:
+				get:
+			/publisher:
+				get:

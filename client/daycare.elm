@@ -1,6 +1,7 @@
 module Main exposing (init, main, update)
 
 -- import DaycareView exposing (..)
+-- import DaycareStyle exposing (..)
 
 import Browser
 import DaycareTypesDecoders exposing (..)
@@ -72,10 +73,6 @@ update msg model =
             case result of
                 Ok loadResponse ->
                     if loadResponse.success == True then
-                        let
-                            _ =
-                                Debug.log "load success. User" (Debug.toString loadResponse.user)
-                        in
                         case loadResponse.user of
                             Just content ->
                                 ( { model | loadingState = LoadStateSuccess content }
@@ -170,49 +167,51 @@ view model =
                 ]
 
 
-loggedInViewGenerate : Model -> Html msg
+loggedInViewGenerate : Model -> Html Msg
 loggedInViewGenerate model =
     div [ class "main" ]
-        [ div [ class "sidebar" ]
-            (viewSidebar model)
-
-        -- []
+        [ stylesheet
+        , viewSidebar model
         , div [ class "planner" ]
-            -- []
             [ viewPlanner model ]
+        , livejs
         ]
 
 
-viewSidebar : Model -> List (Html msg)
+viewSidebar : Model -> Html Msg
 viewSidebar model =
-    case model.loadingState of
-        LoadStateSuccess user ->
-            [ div [ class "head" ]
-                [ h2 [ class "sidebar-header" ]
-                    [ text "daycare" ]
-                ]
-            , div [ class "sidebar-frequent" ]
-                [ h3 []
-                    [ text "frequent" ]
-                , ul [ class "frequent-list" ]
-                    []
-                ]
-            , div [ class "sidebar-goals" ]
-                [ h3 []
-                    [ text "goals" ]
-                , ul [ class "goals-list" ]
-                    -- [ li [ class "lifegoal" ]
-                    (List.map
-                        (\a -> li [] [ text a.name ])
-                        user.goals
-                    )
+    div [ class "sidebar" ]
+        (case model.loadingState of
+            LoadStateSuccess user ->
+                [ div [ class "head" ]
+                    [ h2 [ class "sidebar-header" ]
+                        [ text "daycare" ]
+                    ]
+                , div [ class "sidebar-frequent" ]
+                    [ h3 []
+                        [ text "frequent" ]
+                    , ul [ class "frequent-list" ]
+                        []
+                    ]
+                , div [ class "sidebar-goals" ]
+                    [ h3 []
+                        [ text "goals" ]
+                    , ul [ class "goals-list" ]
+                        -- [ li [ class "lifegoal" ]
+                        (List.map
+                            (\a -> li [] [ text a.name ])
+                            user.goals
+                        )
 
-                -- [ text "test1" ]
+                    -- [ text "test1" ]
+                    ]
                 ]
-            ]
 
-        _ ->
-            [ text ("weird error. Loginstate: Success. LoadingState: " ++ Debug.toString model.loadingState) ]
+            _ ->
+                [ text ("weird error. Loginstate: Success. LoadingState: " ++ Debug.toString model.loadingState)
+                , button [ onClick UserLoginStateReset ] [ text "retry" ]
+                ]
+        )
 
 
 viewPlanner : Model -> Html msg
@@ -240,7 +239,9 @@ viewPlanner model =
                     , div
                         [ class "days" ]
                         [ ul [ class "days-list" ]
-                            (List.map viewDay user.days)
+                            [ text "" ]
+
+                        -- (List.map viewDay user.days)
                         ]
                     ]
 
@@ -307,3 +308,36 @@ loggedOutViewGenerate model =
                     , button [ onClick Login ] [ text "login" ]
                     ]
                 ]
+
+
+stylesheet =
+    let
+        tag =
+            "link"
+
+        attrs =
+            [ attribute "rel" "stylesheet"
+            , attribute "property" "stylesheet"
+            , attribute "href" "src/style.css"
+            ]
+
+        children =
+            []
+    in
+    node tag attrs children
+
+
+livejs =
+    let
+        tag =
+            "script"
+
+        attrs =
+            [ type_ "text/javascript"
+            , src "src/live.js"
+            ]
+
+        children =
+            []
+    in
+    node tag attrs children

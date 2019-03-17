@@ -33,7 +33,7 @@ apipath2 = '/api/v2/'
 
 validComponents = [
     'days', 'goals', 'attributes', 'activities', 'settings', 'sid', 'username',
-    'token'
+    'token', 'user'
 ]
 # newapi
 
@@ -97,7 +97,7 @@ def loggedin():  # required data: token
 @app.route(apipath2 + 'get/<component>/<key>', methods=['POST'])
 def get(component=None, key=None):  # required data: token
     data = request.get_json()
-    print('data')
+    # print('data')
     # print(request.form)
 
     if 'token' in data and component in validComponents:
@@ -125,8 +125,8 @@ def get(component=None, key=None):  # required data: token
 @app.route(apipath2 + 'edit/<component>/<key>', methods=['POST'])
 def edit(component, key=None):
     data = request.get_json()
-    print('data')
-    print(data)
+    # print('data')
+    # print(data)
     if 'token' in data and 'content' in data and component in validComponents:
         token = data['token']
         content = data['content']
@@ -170,5 +170,5 @@ def jTrue(udi=False):
     return j(di)
 
 
-# if __name__ == '__main__':
-#     app.run(host='127.0.0.1', port=8000, debug=True)
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=5000, debug=True)

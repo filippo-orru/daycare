@@ -12,11 +12,11 @@ def login(u, p):
     if not dbReturn:
         return False
 
-    if 'token' in dbReturn:
-        token = str(dbReturn['token'])
-    else:
-        token = tokenM.generate()
-        dbe('users', 'update', [{'username': u}, {'$set': {'token': token}}])
+    # if 'token' in dbReturn:
+    #     token = str(dbReturn['token'])
+    # else:
+    token = tokenM.generate()
+    dbe('users', 'update', [{'username': u}, {'$set': {'token': token}}])
 
     return token
 
@@ -26,13 +26,7 @@ def logout(u, p):
         return False
 
     try:
-        dbe('users', 'update', [{
-            'username': username
-        }, {
-            '$set': {
-                'token': ""
-            }
-        }])
+        dbe('users', 'update', [{'username': u}, {'$set': {'token': ""}}])
     except IndexError:
         return False
 
