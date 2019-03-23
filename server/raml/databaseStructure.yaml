@@ -1,0 +1,155 @@
+---
+# users:
+user:
+  type: object
+  description: The whole user object
+  keys:
+    _id:
+      type: ObjectId
+      unique: true
+    email:
+      type: string
+      unique: true
+    username:
+      type: string
+      unique: true
+    password:
+      type: string
+    settings:
+      type: object
+      keys:
+        fullscreen:
+          type: boolean
+          default: true
+        theme:
+          type: boolean
+          default: dark
+    goals:
+      type: array
+      default: []
+      items:
+        name:
+          type: string
+        description:
+          type: string
+        deadline:
+          type: datetime
+          default: null
+    activities:
+      description: Array of all activities that can then be added to a day as a task
+      type: array
+      default: []
+      items:
+        name:
+          type: string
+        description:
+          type: string
+          default: ""
+        category:
+          type: string
+          default: ""
+        related_goals:
+          type: array
+          items:
+            goal: string
+          default: []
+        productivity_level:
+          type: int
+          min: 0
+          max: 10
+          default: null
+        time:
+          type: object
+          keys:
+            start:
+              description: "Start time in Format HH:MM"
+              type: string
+            end:
+              type: string
+            pre:
+              description: Minutes of time before task starts (warmup)
+              type: int
+            post:
+              type: int
+        autoedit:
+          description: |
+            Whether the system should auto-adjust the default time 
+            of the activity to average/computed value based on previous
+            entries/scheduled times.
+          type: bool
+          default: true
+    attributes:
+      type: array
+      default: []
+      items:
+        short:
+          type: string
+        name:
+          type: string
+          default: ""
+        description:
+          type: string
+          default: ""
+    categories:
+      type: array
+      default: []
+      items:
+        name:
+          type: string
+        description:
+          type: string
+        productivity_level:
+          type: int
+
+    token:
+      type: string
+      length: 43
+      default: null
+
+day:
+  description: Contains all information for a single day
+  type: object
+  keys:
+    owner:
+      type: string
+      description: Owner of this day
+    date:
+      description: identifier of day in format YYYYMMDD
+      type: string
+    attributes:
+      type: array
+      default: []
+      items:
+        short:
+          type: string
+          description: |
+            short version of attribute,
+            match with user/attributes
+    description:
+      type: string
+      default: ""
+    tasks:
+      type: array
+      default: []
+      items:
+        name:
+          type: string
+        status:
+          type: string
+          default: ""
+        important:
+          type: boolean
+          default: false
+        time:
+          type: object
+          keys:
+            start:
+              description: "Start time in Format HH:MM"
+              type: string
+            end:
+              type: string
+            pre:
+              description: Minutes of time before task starts (warmup)
+              type: int
+            post:
+              type: int

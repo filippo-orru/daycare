@@ -20,9 +20,14 @@ resourceTypes:
           body:
             application/json:
               example: { "message": "No valid token was supplied" }
+        500:
+          body:
+            application/json:
+              example: |
+                { "message": "Internal Server Error." }
 
     post:
-      description: Add new item to <<resourcePathName>>
+      description: Add new <<resourcePathName|!singularize>> to <<resourcePathName>>
       queryParameters:
         token:
           description: Token needed to post
@@ -38,6 +43,20 @@ resourceTypes:
           body:
             application/json:
               example: <<exampleResponse>>
+        401:
+          body:
+            application/json:
+              example: { "message": "No valid token was supplied" }
+        409:
+          body:
+            application/json:
+              example: |
+                { "message": "<<resourcePathName|!singularize>> already exists" }
+        500:
+          body:
+            application/json:
+              example: |
+                { "message": "Internal Server Error." }
 
   collection-item:
     description: Entity representing <<resourcePathName|!singularize>> from <<resourcePathName>>
@@ -45,7 +64,7 @@ resourceTypes:
       description: Get <<resourcePathName|!singularize>> from <<resourcePathName>>
       queryParameters:
         token:
-          description: Token needed to post
+          description: Token needed to get
           example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
           required: true
           type: string
@@ -58,21 +77,34 @@ resourceTypes:
           body:
             application/json:
               example: |
-                { "message": "Bad Reqest. Could not delete <<resourcePathName|!singularize>>" }
+                { "message": "Bad Reqest. Could not get <<resourcePathName|!singularize>>" }
+        401:
+          body:
+            application/json:
+              example: |
+                { "message": "Unauthorized. No valid token was supplied." }
         404:
           body:
             application/json:
               example: |
                 { "message": "Cannot find <<resourcePathName|!singularize>>" }
+        500:
+          body:
+            application/json:
+              example: |
+                { "message": "Internal Server Error." }
 
     put:
       description: Overwrite <<resourcePathName>>
       queryParameters:
         token:
-          description: Token needed to post
+          description: Token needed to put
           example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
           required: true
           type: string
+      body:
+        application/json:
+          example: <<exampleItem>>
       responses:
         200:
           body:
@@ -82,20 +114,34 @@ resourceTypes:
           body:
             application/json:
               example: |
-                { "message": "Bad Reqest. Could not delete <<resourcePathName|!singularize>>" }
+                { "message": "Bad Reqest. Could not put <<resourcePathName|!singularize>>" }
+        401:
+          body:
+            application/json:
+              example: |
+                { "message": "Unauthorized. No valid token was supplied." }
         404:
           body:
             application/json:
-              example: { "message": "Cannot find item in <<resourcePathName>>" }
+              example: |
+                { "message": "Cannot find <<resourcePathName|!singularize>>" }
+        500:
+          body:
+            application/json:
+              example: |
+                { "message": "Internal Server Error." }
     patch:
-      description: Update part of <<resourcePathName>>
+      description: Update <<resourcePathName|!singularize>>
       queryParameters:
         token:
-          description: Token needed to post
+          description: Token needed to patch
           example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
           required: true
           type: string
 
+      body:
+        application/json:
+          example: <<exampleKey>>
       responses:
         200:
           body:
@@ -105,16 +151,27 @@ resourceTypes:
           body:
             application/json:
               example: |
-                { "message": "Bad Reqest. Could not delete <<resourcePathName|!singularize>>" }
+                { "message": "Bad Reqest. Could not patch <<resourcePathName|!singularize>>" }
+        401:
+          body:
+            application/json:
+              example: |
+                { "message": "Unauthorized. No valid token was supplied." }
         404:
           body:
             application/json:
-              example: { "message": "Cannot find item in <<resourcePathName>>" }
+              example: |
+                { "message": "Cannot find <<resourcePathName|!singularize>>" }
+        500:
+          body:
+            application/json:
+              example: |
+                { "message": "Internal Server Error." }
     delete:
       description: Delete item from <<resourcePathName>>
       queryParameters:
         token:
-          description: Token needed to post
+          description: Token needed to delete
           example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
           required: true
           type: string
@@ -129,11 +186,19 @@ resourceTypes:
         401:
           body:
             application/json:
-              example: { "message": "No valid token was supplied" }
+              example: |
+                { "message": "Unauthorized. No valid token was supplied." }
         404:
           body:
             application/json:
-              example: { "message": "Cannot find item in <<resourcePathName>>" }
+              example: |
+                { "message": "Cannot find <<resourcePathName|!singularize>>" }
+        500:
+          body:
+            application/json:
+              example: |
+                { "message": "Internal Server Error." }
+
 /users:
   post:
     description: Add new user
@@ -143,15 +208,15 @@ resourceTypes:
         example: "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
         required: true
         type: string
+    body:
+      application/json:
+        type: user
+        example: |
+          {
+            "email": "filippoorru@hotmail.com",
+            "password": "123456"
+          }
     responses:
-      body:
-        application/json:
-          example: |
-            {
-              "email": "filippoorru@hotmail.com",
-              "username": "ffactory",
-              "password": "123456"
-            }
       201:
         body:
           application/json:
@@ -164,7 +229,18 @@ resourceTypes:
       400:
         body:
           application/json:
-            example: { "message": "Invalid parameters. Unable to create user." }
+            example: |
+              { "message": "Bad Request. Unable to create user." }
+      409:
+        body:
+          application/json:
+            example: |
+              { "message": "User already exists" }
+      500:
+        body:
+          application/json:
+            example: |
+              { "message": "Internal Server Error." }
 
   /{user}:
     type:
@@ -176,6 +252,15 @@ resourceTypes:
             "username": "fefe"
           }
         deleteExampleResponse: {}
+        exampleItem: |
+          {
+            "email": "filippoorru@hotmail.com"
+            "username": "fefe"
+          }
+        exampleKey: |
+          { 
+            "email": "filippoorru@hotmail.com"
+          }
     /days:
       type:
         collection:
@@ -199,6 +284,15 @@ resourceTypes:
                 {"name": "lesen","state": "completed","time": {"start": "10: 00","end": "11: 00","pre": "0","post": "0"}}
               ]
             }]
+          exampleItem: |
+            {
+              "date": "14.02.2019",
+              "description": "Day was sad",
+              "attributes": [A"],
+              "tasks": [
+                {"name": "die","state": "completed","time": {"start": "12: 45","end": "13: 10","pre": "10","post": "0"}}
+              ]
+            }
 
       /{day}:
         type:
@@ -213,8 +307,21 @@ resourceTypes:
                   {"name": "ethik","state": "todo","time": {"start": "00: 00","end": "23: 55","pre": "0","post": "0"}}
                 ]
               }
-
             deleteExampleResponse: {}
+            exampleItem: |
+              {
+                "date": "12.02.2019",
+                "description": "Day was sad",
+                "attributes": ["A"],
+                "tasks": [
+                  {"name": "raus","state": "completed","time": {"start": "12: 45","end": "13: 10","pre": "10","post": "0"}},
+                  {"name": "ethik","state": "todo","time": {"start": "00: 00","end": "23: 55","pre": "0","post": "0"}}
+                ]
+              }
+            exampleKey: |
+              {
+                "description": "Day wasn't too bad"
+              }
     /goals:
       type:
         collection:
@@ -227,43 +334,140 @@ resourceTypes:
               "name": "daycare",
               "description": "das proj fertig"
             }]
+          exampleItem: |
+            {
+              "name": "führerschein",
+              "description": "ich will führerschein machen",
+              "deadline": "2019-05-31T00:00:00.000Z"
+            }
 
       /{goal}:
         type:
           collection-item:
             exampleResponse: |
-              { "name": "daycare", "description": "das proj fertig" }
+              {
+                "name": "daycare",
+                "description": "das proj fertig"
+              }
             deleteExampleResponse: {}
+            exampleItem: |
+              {
+                "name": "raus",
+                "description": "mal frische Luft schnuppern"
+              }
+            exampleKey: |
+              { "name": "raus" }
     /attributes:
       type:
         collection:
-          exampleResponse: {}
-
+          exampleResponse: |
+            [{
+              "short": "A",
+              "name": "Alcohol",
+              "description": "drank alcohol"
+            },
+            {
+              "short": "S",
+              "name": "Social",
+              "description": "Met other people/social"
+            }]
+          exampleItem: |
+            {
+              "short": "A",
+              "name": "Alcohol",
+              "description": "drank alcohol"
+            }
       /{attribute}:
         type:
           collection-item:
-            exampleResponse: {}
+            exampleResponse: |
+              {
+                "short": "A",
+                "name": "Alcohol",
+                "description": "drank alcohol"
+              }
 
             deleteExampleResponse: {}
+
+            exampleKey: |
+              { "short": "A" }
+        uriParameters:
+          attribute:
+            description: The short version of the attribute to filter for
+            type: string
+            minLength: 1
+            maxLength: 3
+            required: true
+            example: |
+              { "short": "A" }
+
     /activities:
       type:
         collection:
-          exampleResponse: {}
+          exampleResponse: |
+            [{
+              "name": "raus",
+              "description": "raus gegangen",
+              "category": "physical activity",
+              "related_goals": ["healthy life"],
+              "productivity_level": 8,
+              "time": {
+                "start": "16:50",
+                "end": "17:10",
+                "pre": 5,
+                "post": 5
+              },
+              "autoedit": false
+            },
+            {
+              "name": "ethik",
+              "description": "ethik gelernt",
+              "category": "mental activity",
+              "related_goals": ["gutes Abitur"],
+              "productivity_level": 8,
+              "time": {
+                "start": "14:50",
+                "end": "15:20",
+                "pre": 1,
+                "post": 0
+              },
+              "autoedit": true
+            }]
 
       /{activity}:
         type:
           collection-item:
-            exampleResponse: {}
+            exampleResponse: |
+              {
+                "name": "raus",
+                "description": "raus gegangen",
+                "category": "physical activity",
+                "related_goals": ["healthy life"],
+                "productivity_level": 8,
+                "time": {
+                  "start": "16:50",
+                  "end": "17:10",
+                  "pre": 5,
+                  "post": 5
+                },
+                "autoedit": true
+              }
             deleteExampleResponse: {}
     /settings:
       type:
         collection:
-          exampleResponse: {}
+          exampleResponse: |
+            {
+              "fullscreen": true,
+              "theme": "dark"
+            }
       /{setting}:
         type:
           collection-item:
-            exampleResponse: {}
-            deleteExampleResponse: {}
+            exampleResponse: |
+              { "fullscreen": true }
+            deleteExampleResponse: |
+              {}
     /token:
       post:
         queryString:

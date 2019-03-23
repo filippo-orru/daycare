@@ -1,0 +1,140 @@
+// database.daycare
+{
+    "users": [{
+        "_id": "5c632a5b3ee0872e8571d9d4",
+        "email": "filippoorru@hotmail.com",
+        "username": "fefe",
+        "password": "$argon2i$v=19$m=102400,t=2,p=8$GWPsndPa21sLgRACwHhvzQ$ts/uTXV2952Gigt/rGn+ZA",
+        "settings": {
+            "fullscreen": true,
+            "theme": "dark"
+        },
+        "goals": [{
+            "name": "führerschein",
+            "description": "ich will führerschein machen",
+            "deadline": "2019-05-31T00:00:00.000Z"
+        }, {
+            "name": "daycare",
+            "description": "das proj fertig"
+        }],
+        "activities": [{
+                "name": "raus",
+                "description": "raus gegangen",
+                "category": "balance",
+                "goals": ["healthy life"],
+                "prodlevel": 3,
+                "time": {
+                    "start": "12:45",
+                    "end": "13:10",
+                    "pre": 5,
+                    "post": 5
+                },
+                "autoedit": false,
+            },
+            {
+                "name": "daycare",
+                "description": "work on daycare project",
+                "category": "productivity",
+                "goals": ["daycare"],
+                "autoedit": true,
+                "time": {
+                    "start": "12:45",
+                    "end": "13:10",
+                    "pre": 5,
+                    "post": 0
+                }
+            }
+        ],
+        "attributes": [{
+            "name": "alcohol",
+            "short": "A",
+            "description": ""
+        }, {
+            "name": "social",
+            "short": "S",
+            "description": ""
+        }],
+        "token": "oRzV7DVFEFOuRsTUuPtK7LDZtuVRNzeyymq-yWYWQ8A"
+    }],
+
+    // --- --- --- ---
+
+    "days": [{
+            "owner": "filippoorru@hotmail.com",
+            "date": "12.02.2019",
+            "attributes": ["X", "A", "S"],
+            "tasks": [{
+                "name": "raus",
+                "state": "completed",
+                "time": {
+                    "start": "12:45",
+                    "end": "13:10",
+                    "pre": "10",
+                    "post": "0"
+                }
+            }, {
+                "name": "ethik",
+                "state": "todo",
+                "time": {
+                    "start": "00:00",
+                    "end": "23:55",
+                    "pre": "0",
+                    "post": "0"
+                }
+            }],
+            "description": "day was very good"
+        },
+        {
+            "owner": "filippoorru@hotmail.com",
+            "date": "15.02.2019",
+            "attributes": ["S"],
+            "tasks": [{
+                "name": "raus",
+                "state": "todo",
+                "time": {
+                    "pre": "",
+                    "start": "",
+                    "end": "",
+                    "post": ""
+                }
+            }],
+            "description": "day was not vrey good longre description lalalalalallalalalalaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+            "owner": "filippoorru@hotmail.com",
+            "date": "17.02.2019",
+            "attributes": [""],
+            "tasks": [{
+                "name": "test",
+                "state": "todo"
+            }, {
+                "name": "spiegare a babbo",
+                "state": "todo"
+            }, {
+                "name": "sasa hallo sagen",
+                "state": "todo"
+            }],
+            "description": "today :)"
+        },
+        {
+            "owner": "filippoorru@hotmail.com",
+            "date": "21.02.2019",
+            "attributes": ["S"],
+            "tasks": [{
+                "name": "mama alles erklären",
+                "state": "todo"
+            }],
+            "description": "hahaha alles ist toll"
+        },
+        {
+            "owner": "filippoorru@hotmail.com",
+            "date": "18.03.2019",
+            "attributes": [],
+            "tasks": [{
+                "name": "babbo alles erklären",
+                "state": "completed"
+            }],
+            "description": "day was sad"
+        }
+    ]
+}

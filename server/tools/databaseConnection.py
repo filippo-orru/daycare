@@ -1,183 +1,75 @@
 from pymongo import MongoClient
-# from bson import ObjectId
 try:
     from tools import parseConfig, actions
 except ModuleNotFoundError:
     import parseConfig, actions
-#import pymysql.cursors
-
-# sys.path.insert(1, os.path.join(sys.path[0], '..'))
-
-connectedToDb = False
-client = None
-db = None
-useLocalDatabase = True
 
 
-def ConnectionToDb():
-    global connectedToDb
+class DatabaseConnection():
+    _client = None
+    _db = None
 
-    if connectedToDb == False:
-        return connectToDb()
-    else:
-        return True
+    def __init__(self):
+        path = actions.modPath('databaseConfig.ini')
 
+        if not actions.fileExists(path, False):
+            raise FileNotFoundError('Could not find databaseConnection.ini')
+        config = parseConfig.parse(path)
 
-def connectToDb():
-    global client, db, connectedToDb, useLocalDatabase
-    # print('Connecting to database')
-
-    # username = str(parse()['mlab']['username'])
-    # password = urllib.parse.quote_plus(parse()['mlab']['password'])
-    # print(__name__)
-    path = actions.modPath('databaseConfig.ini')
-
-    if actions.fileExists(path, False):
-        if useLocalDatabase:
-            actions.log('Using local database')
-            client = MongoClient(
-                parseConfig.parse(path)['mongodb']['clientUrl'])
+        if bool(config['general']['uselocal']) == True:
+            part = 'mongodb'
         else:
-            actions.log('Using remote database')
-            client = MongoClient(parseConfig.parse(path)['mlab']['clientUrl'])
-    else:
-        actions.log('cant connect to db inner', 'Error')
-        return False
-    db = client.get_database()
-    connectedToDb = True
-    return True
+            part = 'mlab'
+        print('DEBUG: Creating new connection to database')
+        self._client = MongoClient(config[part]['clientUrl'])
+        self._db = self._client.get_database()
 
+    def __enter__(self):
+        return self
 
-def executeMDb(database,
-               dbAction,
-               mongoDbInput,
-               rowCount=1,
-               sortStr=None,
-               ordered=True):
-    errorCode = 1  #0: undef | 1: success | 2: no valid action | 3: empty input string
-    dbReturn = None
-    global db, useLocalDatabase
+    def __exit__(self, exec_type, exec_value, traceback):
+        # MongoClient().get_database()[''].find()
+        print('DEBUG: Closing connection to database')
+        self._client.close()
 
-    if not ConnectionToDb():
-        return e(0)
+    def __del__(self):
+        print('DEBUG: Closing connection to database')
+        self._client.close()
+        self._db = None
 
-    # if useLocalDatabase:
-    #     localString = 'local'
-    # else:
-    #     localString = 'remote'
+    def insert(self, database, mdbInput):
+        return self._db[database].insert(mdbInput)
 
-    # actions.log('Executing {0} on {1} db {2}.'.format(dbAction, localString,
-    #
-    #                                                database))
+    def insert_many(self, database, mdbInput):
+        return self._db[database].insert_many(mdbInput)
 
-    if errorCode == 0:
-        actions.log('Cant connect to db', 'Error')
-        return e(errorCode)
-    #print(dbAction)
-    if mongoDbInput == None:  #or _input == ''
-        errorCode = 3
-    else:
-        saneStr = mongoDbInput
+    def find(self, database, mdbInput, limit=1, offset=0):
+        '''
+        Example: find('users', {"age": {"$gt": 5}}, 5, 1)
+        Will find 5 users with age > 5, skipping the first one
+        '''
+        return self._db[database].find(mdbInput).skip(offset).limit(limit)
 
-        if dbAction == 'insert':
-            db[database].insert(saneStr)
-        elif dbAction == 'update':
-            try:
-                db[database].update(saneStr[0], saneStr[1], saneStr[2])
-            except (KeyError, IndexError):
-                db[database].update(saneStr[0], saneStr[1])
-        elif dbAction == 'updatemany':
-            try:
-                db[database].update_many(saneStr[0], saneStr[1], saneStr[2])
-            except (KeyError):
-                db[database].update_many(saneStr[0], saneStr[1])
-        elif dbAction == 'find':
-            if rowCount == 'all':
-                if sortStr != None:
-                    dbReturn = db[database].find(saneStr).sort(
-                        sortStr[0], sortStr[1])
-                else:
-                    dbReturn = db[database].find(saneStr)
-            else:
-                dbReturn = db[database].find(saneStr).limit(rowCount)
-        # elif dbAction == 'findChildren':
-        #     dbReturn = db[database].find(saneStr).children
-        elif dbAction == 'delete':
-            dbReturn = db[database].delete(saneStr)
-        elif dbAction == 'deletemany':
-            dbReturn = db[database].delete_many(saneStr)
-        elif dbAction == 'drop':
-            db[database].drop()
-        elif dbAction == 'bulk':
-            db[database].bulk_write(saneStr, ordered=ordered)
-        else:
-            errorCode = 2
+    def update(self, database, mdbInput):
+        '''
+        Example: update('users', [
+            {"age": 18},
+            {"$set": {"candrink": "true"}},
+            upsert=True])
+        '''
+        return self._db[database].update(*mdbInput)
 
-        errorCode = 1
-    if dbReturn != None:
-        return {'errorCode': errorCode, 'dbReturn': dbReturn}
-    else:
-        return e(errorCode)
+    def update_many(self, database, mdbInput):
+        return self._db[database].update_many(*mdbInput)
 
+    def delete(self, database, mdbInput):
+        '''
+        Example: delete('users', {"age": {"$lt": 18}})
+        '''
+        return self._db[database].delete(mdbInput)
 
-def executeBulkMDb(database, dbInputList):  #, abAction
-    errorCode = 0  #0: undef | 1: success | 2: no valid action | 3: empty input string
-    #print(database)
-    #print(dbAction)
-    #print(str(mongoDbInput))
-    if dbInputList == None or len(dbInputList) == 0:  #or _input == ''
-        errorCode = 3
-    else:
-        ConnectionToDb()
-        global db
-        collection = db[database]
-        rawOperations = sanitizeInput(dbInputList)
-        dbReturn = None
-        operations = []
-        # if len(operations) <= 1:
-        #     executeMDb()
-        # operations = []
-        for rawOperation in rawOperations:
+    def delete_many(self, database, mdbInput):
+        return self._db[database].delete_many(mdbInput)
 
-            operations.append(rawOperation)
-
-            # Send once every 1000 in batch
-            if (len(operations) == 1000):
-                actions.log('sending 1000 to db')
-                collection.bulk_write(operations, ordered=False)
-                operations = []
-
-        if (len(operations) > 0):
-            actions.log('sending rest to db')
-            collection.bulk_write(operations, ordered=False)
-
-        errorCode = 1
-    if dbReturn != None:
-        return {'errorCode': errorCode, 'dbReturn': dbReturn}
-    else:
-        return e(errorCode)
-
-
-def sanitizeInput(mongoDbInput):
-    #global connection
-    # print(type(mongoDbInput))
-    # for key in mongoDbInput.keys():
-    #     print('')
-    mongoDbInputSane = {}
-    try:
-        for item in mongoDbInput.items():
-            mongoDbInputSane[item[0]] = str(item[1]).replace('$', '\\$')
-        return mongoDbInputSane
-    except:
-        return mongoDbInput
-
-
-def e(code):
-    return {'errorCode': code}
-
-
-# print(executeMDb('chats','findChildren',{'nodeIndex':0})['dbReturn'][0])
-
-# ConnectionToDb()
-
-# print(db['chat'].update)
+    def drop(self, database):
+        return self._db[database].drop()
