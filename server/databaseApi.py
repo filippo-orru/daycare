@@ -1,60 +1,41 @@
+import bson.errors
 from bson.json_util import dumps, loads, ObjectId
 from passlib.hash import argon2
 # import bson.json_util
-from tools import actions, tokenM, user as userC
-from tools.databaseConnection import DatabaseConnection
+from tools import actions, user as userC
+from tools import databaseConnection as dbC
+from secrets import token_urlsafe
 import json
 
-dbc = DatabaseConnection()
+db = dbC.DatabaseConnection()
 
 
-def login(u, p):
-    result = authUser(u, p)
-
-    if not result:
+def login(key, value, p):
+    if not authUser(key, value, p):
         return False
 
-    token = tokenM.generate()
-    dbc.update('users', [{'username': u}, {'$set': {'token': token}}])
+    token = token_urlsafe(32)
+
+    db.update('users', [{key: value}, {'$set': {'token': token}}])
     return token
 
 
-def logout(u, p):
-    if not authUser(u, p):
+def logout(key, value, p):
+    if not authUser(key, value, p):
         return False
 
     try:
-        dbc.update('users', [{'username': u}, {'$set': {'token': ""}}])
+        db.update('users', [{key: value}, {'$set': {'token': ''}}])
     except IndexError:
         return False
 
     return True
 
 
-def addUser(email, pwd, uname=''):
-    # if list(dbc.find('users', {'email': email})):
-    #     raise ValueError('Email already exists')
-
-    # if list(dbc.find('users', {'username': uname})):
-    #     raise ValueError('Username already exists')
-
-    pwd = argon2.hash(pwd)
-    _user = userC.defaultUser()
-    _user['email'] = email
-    _user['username'] = uname
-    _user['password'] = pwd
-    uID = dbc.insert('users', _user)
-    user = getUserByKey('_id', uID)
-
-    if user:
-        return user
-    else:
-        raise IndexError('Cannot find created user.')
-
-
-def authUser(u, p):
-    result = getUserByKey('username', u)
-    if not result:
+def authUser(key, value, p):
+    try:
+        result = getUserByKey(key, value, False)
+    except IndexError:
         return False
 
     if argon2.verify(p, result['password']):  # pw correct
@@ -68,7 +49,10 @@ def authToken(token, username=None):
     outputs username if token and/or username match
     '''
 
-    result = getUserByKey('token', token)
+    try:
+        result = getUserByKey('token', token)
+    except IndexError:
+        return False
 
     if len(result) == 0:
         return False
@@ -83,128 +67,136 @@ def authToken(token, username=None):
         return serverUsername
 
 
+def addUser(email, pwd, uname=''):
+    if list(db.find('users', {'email': email})):
+        raise ValueError('Email already exists')
+
+    if list(db.find('users', {'username': uname})):
+        raise ValueError('Username already exists')
+
+    pwd = argon2.hash(pwd)
+    _user = userC.defaultUser()
+    _user['email'] = email
+    _user['username'] = uname
+    _user['password'] = pwd
+
+    uID = db.insert_one('users', _user)
+
+    user = getUserByKey('_id', uID)
+
+    return user
+
+
+def getUsers(limit=50):
+    # try:
+    users = db.find('users', {}, limit)
+
+    users = list(map(fromObjectId, users))
+
+    return json.loads(dumps(users))
+    # except
+
+
 def getUserByKey(key, value, popPw=True):
-    try:
-        user = dbc.find('users', {key: value})[0]
-        if popPw: user.pop('_id')
-    except IndexError:
-        return None
+    if key == '_id' and type(value) == str:
+        try:
+            value = ObjectId(value)
+        except bson.errors.InvalidId:
+            return None
+    user = db.find('users', {key: value})[0]
+
+    user['_id'] = fromObjectId(user['_id'])
+
+    if popPw: user.pop('password')
+
     return json.loads(dumps(user))
 
 
 def setUserByKey(key, value, _user):
-    try:
-        dbc.update('users', [{key: value}, {'$set': _user}])
-        newValue = _user[key]
-    except Exception as e:
-        print(e)
-        return False
+    db.update('users', [{key: value}, {'$set': _user}])
+    newValue = _user[key]
     return getUserByKey(key, newValue)
 
 
-def get2(username, component, key=None):  #, _id=-1):
-    '''
-    input: str(username), str(component)
-    return: python object -> loads(dumps(pymongo.cursor.return))
-    '''
-
-    if component not in [
-            'settings', 'attributes', 'categories', 'activities', 'goals',
-            'days', 'user'
-    ]:
-        raise KeyError('Not a valid servercontent type (component)')
-
-    servercontent = dbc.find('users', {'username': username})[0]
-
-    if component != 'user':
-        servercontent = servercontent[component]
-        # print('servercontent')
-        # print(servercontent)
-        # component defined -> go a level deeper
-
-        if key:  # key defined
-            key = actions.keyOkay(key, servercontent)
-            if key:  # key proper usage
-                try:
-                    servercontent = servercontent[key]
-                except KeyError:
-                    return False
-            else:  # key defined but improper usage
-                return False
-
-    else:  # component = user -> pop problematic objectID index
-        servercontent.pop('_id')
-
-    servercontent = json.loads(
-        dumps(servercontent))  # convert content to bson and back to pyobj
-
-    return servercontent
+def deleteUser(uID: str):
+    uID = ObjectId(uID)
+    db.delete('users', {'_id': uID})
 
 
-def edit(username, component, usercontent, key=None, overwrite=False):
-    '''
-    input: str(username), str(component), str(usercontent),
-        opt str/int(key) opt overwrite(bool)
-    return: success: True/False
-    '''
-    servercontent = get(username, component)
-    if not servercontent:  # get returned error
-        return False
+def addDay(_day):
+    _day['owner'] = toObjectId(_day['owner'])
+    db.insert_one('days', _day)
 
-    if type(usercontent) == str:  # usercontent is json string
-        usercontent = loads(usercontent)  # bson -> dict
-    elif type(usercontent) == dict:  # usercontent already dict
-        pass
-    else:  # usercontent has invalid type
-        return False
 
-    # both contents are python objects
+def getDays(uID, limit=50, offset=0):
+    uID = toObjectId(uID)
 
-    if overwrite:
-        servercontent = usercontent
+    days = list(db.find('days', {'owner': uID}, limit, offset, ('date', -1)))
 
-    else:  # upsert in case of non-overwrite
-        if key:  # key defined
-            print('key')
-            print(key)
-            print('servercontent')
-            print(servercontent)
-            if key in servercontent:  # key in servercont
-                # contpart = servercontent[key]  # set contpart
-                if actions.keyOkay(key,
-                                   servercontent):  # key in scont -> update
-                    servercontent[key].update(usercontent)
+    if len(days) < 1:
+        raise KeyError('User not found or has no days')
 
-            else:  # key not in servercontent -> create new
-                servercontent[key] = usercontent
-
-        else:  # no key defined
-            for uKey in usercontent.keys():  # loop through dicts and upsert
-                if uKey not in servercontent.keys():
-                    # key not in scont -> create
-                    servercontent[uKey] = usercontent[uKey]
-                else:  # key in scont -> update
-                    servercontent[uKey].update(usercontent[key])
+    _days = []
+    for day in days:
+        for key, value in day.items():
+            day[key] = fromObjectId(value)
 
     try:
-        dbc.update('users', [{
-            'username': username
-        }, {
-            '$set': {
-                component: servercontent
-            }
-        }])
+        return days
     except:
-        return False
-
-    return True
+        return json.loads(dumps(days))
 
 
-def delete(component, identifier):
-    pass
+def getDay(uID, date):
+    uID = toObjectId(uID)
+    day = db.find('days', {'owner': uID, 'date': date})[0]
+    day['_id'] = fromObjectId(day['_id'])
+    day['owner'] = fromObjectId(day['owner'])
+    return day
 
 
-create = edit  # Create is alias for edit
+def setDay(_day):
+    day = dict(_day)
+    db.update('days', [{'_id': toObjectId(day['_id'])}, {'$set': day}])
+
+
+def deleteDay(_day):
+    day = dict(_day)
+    db.delete('days', {'id': toObjectId(day['_id'])})
+
+
+def toObjectId(uID):
+    try:
+        return ObjectId(uID)
+    except bson.errors.InvalidId:
+        raise ValueError('Invalid ID')
+
+
+def fromObjectId(field):
+    if type(field) == ObjectId:
+        return str(field)
+    else:
+        return field
+
 
 if __name__ == "__main__":
-    print(addUser('email', 'hahalol'))
+    # print(getUserByKey('_id', '5c939867c84e20606c713934'))
+    # print(getDays('5c632a5b3ee0872e8571d9d4'))
+    # de = db.find('users', {'_id': {'$oid': '5c939867c84e20606c713934'}})
+    # print(de)
+    # print(de[0])
+    # print(db.delete_many('users', {'email': {'$exists': False}}))
+    # print(
+    #     checkAuthentication(
+    #         'me', {'token': 'BHlrfRXGbri9Cj7v1qbFyHMaqKxlMgtajLGPi-J4Kvg'}))
+    day = {
+        "owner": "5c632a5b3ee0872e8571d9d4",
+        "date": "2019.03.25",
+        "description": "finally decent api",
+        "tasks": [{
+            "name": "prod",
+            "state": "completed"
+        }]
+    }
+    addDay(day)
+    pass

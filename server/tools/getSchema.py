@@ -7,8 +7,12 @@ def day():
     }
 
 
+def dayPatch():
+    return {'description': str, 'tasks': [task()]}
+
+
 def task():
-    return {  # noqua
+    return {  # yapf: disable
         'name': str,
         'state': str,
         'important': bool,

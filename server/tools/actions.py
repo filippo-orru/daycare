@@ -1,7 +1,8 @@
 from requests import session
 from datetime import datetime, timedelta
-import sys, os.path, time, re, json
 from collections import namedtuple
+import os
+import sys, time, re, json
 
 secondsBetweenRequests = 2
 logTime = True
@@ -51,6 +52,13 @@ def get(_getPage,
         print('Saved to disk ' + localPath)
         return [response.text, c]
     return False
+
+
+def clear():
+    if os.name == 'nt':
+        _ = os.system('cls')
+    else:  # mac and linux
+        _ = os.system('clear')
 
 
 def postAndGet2(_postPage, _getPage, payload, verify=True, useLocalPages=True):
