@@ -1,14 +1,102 @@
-module Main exposing (init, main, update)
-
--- import DaycareView exposing (..)
--- import DaycareStyle exposing (..)
+module Main exposing (main)
 
 import Browser
-import DaycareTypesDecoders exposing (..)
+import Decoders exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
 import Http
+import Json.Decode as D
+import Json.Encode as E
+
+
+
+-- import Model exposing (..)
+-- import Views exposing (..)
+
+
+type alias Model =
+    { loginState : ViewLoginState
+    , userLoadState : LoadState
+    , errormsg : Maybe Http.Error
+    , editState : EditState
+    }
+
+
+init : () -> ( Model, Cmd Msg )
+init () =
+    ( { loginState =
+            { username = "fefe"
+            , password = "123456"
+            , state = LoadingStateIdle
+            }
+      , userLoadState = LoadingStateIdle
+      , editState =
+            { goalEditState = Nothing
+            , attributeEditState = Nothing
+            }
+      , errormsg = Nothing
+      }
+    , Cmd.none
+    )
+
+
+type Msg
+    = LoadUserLogin
+    | LoadUserContent
+    | UserLoginLoaded (Result Http.Error String)
+    | UserContentLoaded (Result Http.Error UserContent)
+    | ViewMessages ViewMessage
+
+
+type alias ViewLoginState =
+    { username : String
+    , password : String
+    , state : LoadState
+    }
+
+
+type UserLoadState
+    = LoadState
+
+
+type alias UserContent =
+    { email : String
+    , attributes : List Attribute
+    , goals : List Goal
+    }
+
+
+type alias EditState =
+    { goalEditState : Maybe GoalEditState
+    , attributeEditState : Maybe AttributeEditState
+    }
+
+
+type alias GoalEditState =
+    { id : Int
+    , content : Attribute
+    }
+
+
+type alias AttributeEditState =
+    { id : Int
+    , content : Attribute
+    }
+
+
+type LoadState
+    = LoadingStateIdle
+    | LoadingStateWait
+    | LoadingStateError Http.Error
+    | LoadingStateSuccess UserContent
+    | LoginStateSuccess String
+
+
+type ViewMessage
+    = ViewSetUsername String
+    | ViewSetPassword String
+    | ViewEditLItem
 
 
 main =
@@ -20,24 +108,6 @@ main =
         }
 
 
-
--- init : Model -> ( Model, Cmd Msg )
--- init model =
---   ( setLoadingState model Loading, loadUser "fefe" "123456" )
-
-
-init : () -> ( Model, Cmd Msg )
-init () =
-    ( { loginState = LoginStateLoggedOut
-      , loadingState = LoadStateIdle
-      , username = "fefe"
-      , password = "123456"
-      }
-    , Cmd.none
-      --, loadUser "fefe" "123456"
-    )
-
-
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.none
@@ -46,298 +116,303 @@ subscriptions model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        UserLoginResponded result ->
+        LoadUserLogin ->
+            ( setLoginStateLoadingstate model LoadingStateWait, login model.loginState )
+
+        LoadUserContent ->
+            ( { model | userLoadState = LoadingStateWait }, loadUser model.loginState )
+
+        UserLoginLoaded result ->
             case result of
-                Ok loginResponse ->
-                    if loginResponse.success == True then
-                        case loginResponse.token of
-                            Just token ->
-                                -- case token of
-                                --   Just
-                                ( { model | loginState = LoginStateLoggedIn token }
-                                , loadUser token
-                                )
+                Ok token ->
+                    ( setLoginStateLoadingstate model (LoginStateSuccess token), Cmd.none )
 
-                            -- else
-                            --   ( { model | loginState = LoginStateFail Nothing }, Cmd.none )
-                            Nothing ->
-                                ( { model | loginState = LoginStateFail Nothing }, Cmd.none )
+                Err message ->
+                    ( setLoginStateLoadingstate model (LoadingStateError message), Cmd.none )
 
-                    else
-                        ( { model | loginState = LoginStateFail Nothing }, Cmd.none )
-
-                Err error ->
-                    ( { model | loginState = LoginStateFail (Just error) }, Cmd.none )
-
-        UserLoadResponded result ->
+        UserContentLoaded result ->
             case result of
-                Ok loadResponse ->
-                    if loadResponse.success == True then
-                        case loadResponse.user of
-                            Just content ->
-                                ( { model | loadingState = LoadStateSuccess content }
-                                , Cmd.none
-                                )
+                Ok content ->
+                    ( { model | userLoadState = LoadingStateSuccess content }, Cmd.none )
 
-                            Nothing ->
-                                ( { model | loadingState = LoadStateFail Nothing }, Cmd.none )
+                Err message ->
+                    ( { model | userLoadState = LoadingStateError message }, Cmd.none )
 
-                    else
-                        ( { model | loadingState = LoadStateFail Nothing }, Cmd.none )
+        ViewMessages (ViewSetUsername u) ->
+            ( setLoginStateUsername model u, Cmd.none )
 
-                Err _ ->
-                    ( { model | loadingState = LoadStateFail Nothing }, Cmd.none )
+        ViewMessages (ViewSetPassword p) ->
+            ( setLoginStatePassword model p, Cmd.none )
 
-        SetUsername u ->
-            ( { model | username = u }, Cmd.none )
-
-        SetPassword p ->
-            ( { model | password = p }, Cmd.none )
-
-        Login ->
-            ( model, login model )
-
-        UserLoginStateReset ->
-            ( { model
-                | loginState = LoginStateLoggedOut
-                , loadingState = LoadStateIdle
-              }
-            , Cmd.none
-            )
+        ViewMessages ViewEditLItem ->
+            ( model, Cmd.none )
 
 
-login : Model -> Cmd Msg
-login model =
+setLoginStateUsername : Model -> String -> Model
+setLoginStateUsername model u =
     let
-        u =
-            model.username
+        oldVs =
+            model.loginState
 
-        p =
-            model.password
+        newVs =
+            { oldVs | username = u }
     in
+    { model | loginState = newVs }
+
+
+setLoginStatePassword : Model -> String -> Model
+setLoginStatePassword model p =
+    let
+        oldVs =
+            model.loginState
+
+        newVs =
+            { oldVs | password = p }
+    in
+    { model | loginState = newVs }
+
+
+setLoginStateLoadingstate : Model -> LoadState -> Model
+setLoginStateLoadingstate model state =
+    let
+        oldVs =
+            model.loginState
+
+        newVs =
+            { oldVs | state = state }
+    in
+    { model | loginState = newVs }
+
+
+
+-- setLoadUserStateLoadingState : Model -> LoadState -> Model
+-- setLoadUserStateLoadingState model state =
+--     let
+--         oldVs =
+--             model.userLoadState
+--         newVs =
+--             { oldVs | state = state }
+--     in
+--     { model | userLoadState = newVs }
+
+
+loadUser : ViewLoginState -> Cmd Msg
+loadUser loginState =
+    case loginState.state of
+        LoginStateSuccess token ->
+            Http.request
+                { method = "GET"
+                , timeout = Nothing
+                , tracker = Nothing
+                , body = Http.emptyBody
+                , headers = [ Http.header "token" token ]
+                , url = "http://localhost:5000/api/v3/users/me"
+                , expect = Http.expectJson UserContentLoaded userLoadStateDecoder
+                }
+
+        _ ->
+            Debug.todo "?? what is happening. Loading without success"
+
+
+login : ViewLoginState -> Cmd Msg
+login loginState =
     Http.post
-        { url = "http://127.0.0.1:5000/api/v2/login"
-        , body = Http.jsonBody (userLoginEncoder u p)
-        , expect =
-            Http.expectJson UserLoginResponded userLoginResponseDecoder
+        { url = "http://localhost:5000/api/v3/login"
+        , body = Http.jsonBody (userLoginEncoder loginState)
+        , expect = Http.expectJson UserLoginLoaded userLoginDecoder
         }
 
 
-loadUser : String -> Cmd Msg
-loadUser token =
-    Http.post
-        { url = "http://127.0.0.1:5000/api/v2/get/user"
-        , body = Http.jsonBody (userLoadEncoder token)
-        , expect =
-            Http.expectJson UserLoadResponded userLoadResponseDecoder
-        }
+userLoginEncoder : ViewLoginState -> E.Value
+userLoginEncoder loginState =
+    E.object
+        [ ( "username", E.string loginState.username )
+        , ( "password", E.string loginState.password )
+        ]
+
+
+userLoginDecoder : D.Decoder String
+userLoginDecoder =
+    D.field "token" D.string
+
+
+userLoadStateDecoder : D.Decoder UserContent
+userLoadStateDecoder =
+    D.map3 UserContent
+        (D.field "email" D.string)
+        (D.field "attributes" (D.list attributeDecoder))
+        (D.field "goals" (D.list goalDecoder))
+
+
+type alias Attribute =
+    { short : String
+    , name : String
+    , description : Maybe String
+    }
+
+
+attributeDecoder =
+    D.map3 Attribute
+        (D.field "short" D.string)
+        (D.field "name" D.string)
+        (D.maybe (D.field "description" D.string))
+
+
+type alias Goal =
+    { name : String
+    , description : Maybe String
+    , deadline : Maybe String
+    }
+
+
+goalDecoder =
+    D.map3 Goal
+        (D.field "name" D.string)
+        (D.maybe (D.field "description" D.string))
+        (D.maybe (D.field "deadline" D.string))
 
 
 view : Model -> Html Msg
 view model =
-    case model.loginState of
-        LoginStateLoggedIn _ ->
-            loggedInViewGenerate model
+    div []
+        (case model.loginState.state of
+            LoginStateSuccess token ->
+                case model.userLoadState of
+                    LoadingStateSuccess user ->
+                        [ div []
+                            [ text "Loaded Successfully" ]
+                        , div []
+                            [ text ("email: " ++ user.email) ]
+                        , div []
+                            [ text "Attributes: "
+                            , user.attributes
+                                |> List.map
+                                    (\att ->
+                                        case att.description of
+                                            Just desc ->
+                                                ( att, [ att.short, ": ", att.name, " (", desc, ")" ] )
 
-        LoginStateLoggedOut ->
-            loggedOutViewGenerate model
+                                            Nothing ->
+                                                ( att, [ att.short, ": ", att.name ] )
+                                    )
+                                -- |> Debug.toString
+                                -- |> String.join ", "
+                                -- |> List.map ()
+                                |> List.map
 
-        LoginStateFail error ->
-            div []
-                [ text "Error while logging you in. "
-                , let
-                    error_ =
-                        case error of
-                            Just e ->
-                                Debug.toString error
+                            -- |> viewTextListToUl
+                            ]
+                        , div [] []
+                        , div []
+                            [ text "Goals:" ]
+                        , user.goals
+                            |> List.map
+                                (\goal ->
+                                    case goal.description of
+                                        Just desc ->
+                                            [ goal.name, " (", desc, ")" ]
 
-                            Nothing ->
-                                ""
-                  in
-                  case String.length <| error_ of
-                    0 ->
-                        text "Wrong password? "
+                                        Nothing ->
+                                            [ goal.name ]
+                                )
+                            -- |> List.map
+                            |> viewTextListToUl model
+                        ]
+
+                    LoadingStateError error ->
+                        [ div []
+                            (viewResponseError error)
+                        , div []
+                            [ text ("Logged in! Token: " ++ token)
+                            , div []
+                                [ button [ onClick LoadUserContent ] [ text "Load Content" ]
+                                ]
+                            ]
+                        ]
 
                     _ ->
-                        div []
-                            [ text ("Unknown Error!\n\n" ++ Debug.toString error_)
-                            , text ("token: " ++ Debug.toString model.loginState)
+                        [ text ("Logged in! Token: " ++ token)
+                        , div []
+                            [ button [ onClick LoadUserContent ] [ text "Load Content" ]
                             ]
-                , button [ onClick UserLoginStateReset ] [ text "retry" ]
-                ]
+                        ]
 
+            LoadingStateIdle ->
+                viewLoginForm model.loginState (text "Login to get token.")
 
-loggedInViewGenerate : Model -> Html Msg
-loggedInViewGenerate model =
-    div [ class "main" ]
-        [ stylesheet
-        , viewSidebar model
-        , div [ class "planner" ]
-            [ viewPlanner model ]
-        , livejs
-        ]
+            LoadingStateWait ->
+                viewLoginForm model.loginState (text "Loading...")
 
-
-viewSidebar : Model -> Html Msg
-viewSidebar model =
-    div [ class "sidebar" ]
-        (case model.loadingState of
-            LoadStateSuccess user ->
-                [ div [ class "head" ]
-                    [ h2 [ class "sidebar-header" ]
-                        [ text "daycare" ]
-                    ]
-                , div [ class "sidebar-frequent" ]
-                    [ h3 []
-                        [ text "frequent" ]
-                    , ul [ class "frequent-list" ]
-                        []
-                    ]
-                , div [ class "sidebar-goals" ]
-                    [ h3 []
-                        [ text "goals" ]
-                    , ul [ class "goals-list" ]
-                        -- [ li [ class "lifegoal" ]
-                        (List.map
-                            (\a -> li [] [ text a.name ])
-                            user.goals
-                        )
-
-                    -- [ text "test1" ]
-                    ]
-                ]
+            LoadingStateError error ->
+                viewResponseError error
 
             _ ->
-                [ text ("weird error. Loginstate: Success. LoadingState: " ++ Debug.toString model.loadingState)
-                , button [ onClick UserLoginStateReset ] [ text "retry" ]
-                ]
+                [ text "oh no" ]
         )
 
 
-viewPlanner : Model -> Html msg
-viewPlanner model =
-    div []
-        [ text ""
 
-        -- [ text " -- Planner view -- "
-        , case model.loadingState of
-            LoadStateLoading ->
-                text "Loading user data..."
+-- viewLoginForm : ViewLoginState -> Html Msg -> List (Html Msg)
 
-            LoadStateFail error ->
-                text "Error"
 
-            LoadStateSuccess user ->
-                -- case model.user of
-                --   Just user ->
-                div []
-                    [ text ("Welcome " ++ user.username)
-
-                    -- Nothing ->
-                    -- [ text "Planner: Load Successful but no user data" ]
-                    -- TODO: implement list maps for day -> attributes, descripiton and then tasks
-                    , div
-                        [ class "days" ]
-                        [ ul [ class "days-list" ]
-                            [ text "" ]
-
-                        -- (List.map viewDay user.days)
-                        ]
-                    ]
-
-            LoadStateIdle ->
-                text "Idle."
+viewLoginForm loginState appendix =
+    [ div []
+        [ text "Username:"
+        , input [ placeholder "username", value loginState.username, onInput (ViewMessages << ViewSetUsername) ] []
         ]
-
-
-viewDay model =
-    li [ class "day" ]
-        [ div [ class "day-header" ]
-            [ h4 []
-                [ text "Monday, 13th of March 2015" ]
-            , div [ class "attributes" ]
-                [ ul [ class "attributes-list" ]
-                    [ li [ class "attribute" ]
-                        [ text "" ]
-                    , li [ class "attribute" ]
-                        [ text "" ]
-                    ]
-                ]
-            , p [ class "day-description" ]
-                [ text "Day was very good" ]
-            ]
+    , div []
+        [ text "Password:"
+        , input [ placeholder "Password", value loginState.password, onInput (ViewMessages << ViewSetPassword) ] []
         ]
+    , div []
+        [ button [ onClick LoadUserLogin ] [ text "Login" ] ]
+    , div []
+        [ appendix ]
+    ]
 
 
-loggedOutViewGenerate : Model -> Html Msg
-loggedOutViewGenerate model =
-    case model.loadingState of
-        LoadStateFail _ ->
-            div []
-                [ text "Weird Error. Shouldn't happen."
-                , button [ onClick UserLoginStateReset ] [ text "retry" ]
-                ]
+viewResponseError : Http.Error -> List (Html Msg)
+viewResponseError error =
+    [ case error of
+        Http.BadStatus code ->
+            -- text ("Could not get token. Status " ++ String.fromInt code)
+            text
+                ("Could not get token."
+                    ++ (case code of
+                            401 ->
+                                "Wrong Username or Password."
 
-        LoadStateSuccess _ ->
-            div []
-                [ text "Weird Error. Shouldn't happen."
-                , button [ onClick UserLoginStateReset ] [ text "retry" ]
-                ]
+                            500 ->
+                                "Server Error."
 
-        LoadStateLoading ->
-            text "Logging you in..."
+                            _ ->
+                                "Status: " ++ String.fromInt code
+                       )
+                )
 
-        LoadStateIdle ->
-            div []
-                [ text "not logged in. "
-                , div []
-                    [ input
-                        [ type_ "text"
-                        , value model.username
-                        , onInput SetUsername
-                        , placeholder "username"
-                        ]
-                        []
-                    , input
-                        [ type_ "text"
-                        , value model.password
-                        , onInput SetPassword
-                        , placeholder "password"
-                        ]
-                        []
-                    , button [ onClick Login ] [ text "login" ]
-                    ]
-                ]
+        _ ->
+            text ("Could not get token. Error occured. :: " ++ Debug.toString error)
+    ]
 
 
-stylesheet =
-    let
-        tag =
-            "link"
-
-        attrs =
-            [ attribute "rel" "stylesheet"
-            , attribute "property" "stylesheet"
-            , attribute "href" "src/style.css"
-            ]
-
-        children =
-            []
-    in
-    node tag attrs children
+viewTextToLi : List String -> Html Msg
+viewTextToLi textList =
+    textList
+        |> String.concat
+        |> text
+        |> List.singleton
+        |> (++) [ button [ onClick (ViewMessages ViewEditLItem) ] [ text "Edit" ] ]
+        |> List.reverse
+        |> li []
 
 
-livejs =
-    let
-        tag =
-            "script"
 
-        attrs =
-            [ type_ "text/javascript"
-            , src "src/live.js"
-            ]
+-- viewTextListToUl : Model -> List (List String) -> Html Msg
 
-        children =
-            []
-    in
-    node tag attrs children
+
+viewTextListToUl textList =
+    textList
+        |> List.map viewTextToLi
+        |> Html.ul []
+        |> List.singleton
+        |> div []

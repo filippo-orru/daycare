@@ -109,6 +109,12 @@ def tryConvert(value):
 
 
 def clamp(n, smallest, largest):
+    try:
+        n = int(n)
+    except:
+        return None
+    if not n:
+        return None
     return max(smallest, min(n, largest))
 
 
@@ -120,24 +126,130 @@ def manageAuth(uID, request):
         if uID == 'me':
             key = 'token'
             value = token
-            response = errResponse.Unauthorized()
+            response = httpResponse.Unauthorized()
         else:
             key = '_id'
             value = uID
-            response = errResponse.NotFound()
+            response = httpResponse.NotFound()
 
         try:
             user = dba.getUserByKey(key, value)
             if user['token'] != token:
-                return errResponse.Unauthorized()
+                return httpResponse.Unauthorized()
         except IndexError:
             return response
         except KeyError:
-            return errResponse.Unauthorized()
+            return httpResponse.Unauthorized()
+        except ValueError:
+            return httpResponse.BadRequest()
 
     except:
-        return errResponse.InternalServer()
+        return httpResponse.InternalServer()
     return user
+
+
+def collection(part, request, critical, schema, mr, j, uID):
+    userOrError = manageAuth(uID, request)
+    if type(userOrError) == dict:
+        _user = userOrError
+    else:
+        return userOrError
+
+    _collection = _user[part]
+    if request.method == 'GET':
+        return mr(j(_collection), 200)
+
+    elif request.method == 'POST':
+        try:
+            assertRequest(request, critical)
+        except KeyError:
+            return httpResponse.BadRequest()
+
+        item = assertRequest(request, schema=schema)
+
+        for _item in _collection:
+            if _item[critical[0][0]].lower() == item[critical[0][0]].lower():
+                return httpResponse.Conflict()
+
+        try:
+
+            _user[part].append(item)
+
+            dba.setUserByKey(_user, '_id')
+        except ValueError:
+            return httpResponse.BadRequest()
+        except:
+            return httpResponse.InternalServer()
+
+        return mr(j(_user[part][len(_user[part]) - 1]), 201)
+
+    elif request.method == 'DELETE':
+        _user[part] = []
+        try:
+            dba.setUserByKey(_user, '_id')
+        except ValueError:
+            return httpResponse.BadRequest()
+        except:
+            return httpResponse.InternalServer()
+
+        return httpResponse.make('Cleared collection successfully', 200)
+
+
+def item(part, request, critical, schema, mr, j, uID, partId):
+    userOrError = manageAuth(uID, request)
+    if type(userOrError) == dict:
+        user = userOrError
+        uID = userOrError['_id']
+    else:
+        return userOrError
+
+    _item = None
+    i = 0
+    for item in user[part]:
+        if item[critical[0][0]].lower() == partId.lower():
+            _item = item
+            break
+        i += 1
+
+    if not _item:
+        return httpResponse.NotFound()
+
+    if request.method == 'GET':
+        return mr(j(_item), 200)
+
+    elif request.method == 'PATCH':
+        try:
+            validBody = assertRequest(request, schema=schema)
+        except (KeyError, TypeError):
+            return httpResponse.BadRequest()
+
+        item = dict(_item)
+        item.update(validBody)
+
+        # item[critical[0][0]] = item[critical[0][0]]
+
+        user[part][i] = item
+
+        if item != _item:
+            try:
+                dba.setUserByKey(user, '_id')
+            except ValueError:
+                return httpResponse.BadRequest()
+            except:
+                return httpResponse.InternalServer()
+
+        return mr(j(item), 200)
+
+    elif request.method == 'DELETE':
+        user[part].pop(0)
+        try:
+            dba.setUserByKey(user, '_id')
+            return httpResponse.make(
+                'Successfully deleted item from ' + part, 200) # yapf: disable
+        except ValueError:
+            return httpResponse.BadRequest()
+        except:
+            return httpResponse.InternalServer
 
 
 if __name__ == "__main__":

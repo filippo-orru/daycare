@@ -3,12 +3,13 @@ def day():
         'owner': str,
         'date': str,
         'description': str,
+        'attributes': [str],
         'tasks': [task()],
     }
 
 
 def dayPatch():
-    return {'description': str, 'tasks': [task()]}
+    return {'description': str, 'attributes': [str], 'tasks': [task()]}
 
 
 def task():

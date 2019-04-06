@@ -1,4 +1,4 @@
-from flask import Flask, jsonify as j, request, json, make_response
+from flask import Flask, jsonify as j, request, json, make_response as mr
 from flask_cors import CORS
 from datetime import datetime
 
@@ -16,13 +16,15 @@ CORS(app)
 
 apipath = '/api/v3'
 hRes = fh.httpResponse
-mr = hRes.make
+collMethods = ['GET', 'POST', 'DELETE']
+itemMethods = ['GET', 'PATCH', 'DELETE']
 
 
 @app.route(apipath + '/login', methods=['POST'])
 def login():
     try:
         key = 'username'
+        req = request.get_json()
         critical = [(key, str), ('password', str)]
         value, password = fh.assertRequest(request, critical)
     except KeyError:
@@ -35,10 +37,12 @@ def login():
 
     try:
         response = dba.login(key, value, password)
+    except ValueError:
+        return hRes.Unauthorized()
     except:
         return hRes.InternalServer()
 
-    return response
+    return mr(j({'token': response}), 200)
 
 
 @app.route(apipath + '/users', methods=['POST'])
@@ -58,13 +62,12 @@ def users():
         return hRes.Conflict()
     except:
         return hRes.InternalServer()
-    _user = user
 
     return mr(j(user), 201)  #, {'Content-Type': 'application/json'})
 
 
 # , 'PUT'])
-@app.route(apipath + '/users/<uID>', methods=['GET', 'PATCH', 'DELETE'])
+@app.route(apipath + '/users/<uID>', methods=itemMethods)
 def user(uID):
     userOrError = fh.manageAuth(uID, request)
     if type(userOrError) == dict:
@@ -86,7 +89,7 @@ def user(uID):
 
         if user != _user:
             try:
-                user = dba.setUserByKey('_id', uID, user)  # update in db
+                user = dba.setUserByKey(user, '_id')  # update in db
             except:  # if dbError
                 return hRes.InternalServer()
 
@@ -95,19 +98,22 @@ def user(uID):
     elif request.method == 'DELETE':
         try:
             dba.deleteUser(uID)
-            return mr('Successfully deleted user.', 200)
+            return hRes.make('Successfully deleted user.', 200)
         except:
             return hRes.InternalServer()
 
 
-@app.route(apipath + '/users/<uID>/days', methods=['POST', 'GET'])
+@app.route(apipath + '/users/<uID>/days', methods=collMethods)
 def days(uID):
-    uID = fh.manageAuth(uID, request)
-    if not type(uID) == str:
-        return uID
+    userOrError = fh.manageAuth(uID, request)
+    if type(userOrError) == dict:
+        _user = userOrError
+        uID = _user['_id']
+    else:
+        return userOrError
 
-    optional = [('limit', int), ('offset', int)]
-    limit, offset = fh.assertRequest(request, optional=optional)
+    limit = request.headers.get('limit')
+    offset = request.headers.get('offset')
     if limit and offset:
         limit = fh.clamp(limit, 1, 500)
         offset = fh.clamp(offset, 0, 9500)
@@ -153,19 +159,22 @@ def days(uID):
         return mr(j(day), 201)
 
 
-@app.route('/<uID>/days/<day>', methods=['GET', 'PATCH', 'DELETE'])
-def day(uID, day):
+@app.route(apipath + '/users/<uID>/days/<date>', methods=itemMethods)
+def day(uID, date):
     userOrError = fh.manageAuth(uID, request)
     if type(userOrError) == dict:
         _user = userOrError
-        uID = _user['id']
+        uID = userOrError['_id']
     else:
         return userOrError
 
-    _day = dba.getDay(uID, day)
+    try:
+        _day = dba.getDay(uID, date)
+    except IndexError:
+        return hRes.NotFound()
 
     if request.method == 'GET':
-        return mr(j(_user), 200)
+        return mr(j(_day), 200)
 
     elif request.method == 'PATCH':
         try:
@@ -187,11 +196,79 @@ def day(uID, day):
 
     elif request.method == 'DELETE':
         try:
-            dba.deleteDay(day)
-            return mr('Successfully deleted day.', 200)
+            dba.deleteDay(_day)
+            return hRes.make('Successfully deleted day.', 200)
         except:
             return hRes.InternalServer()
-    return ""
+
+
+@app.route(apipath + '/users/<uID>/activities', methods=collMethods)
+def activities(uID):
+    return fh.collection('activities', request, [('name', str)],
+                         fh.getSchema.activity(), mr, j, uID)
+
+
+@app.route(apipath + '/users/<uID>/activities/<name>', methods=itemMethods)
+def activity(uID, name):
+    return fh.item('activities', request, [('name', str)],
+                   fh.getSchema.activity(), mr, j, uID, name)
+
+
+@app.route(apipath + '/users/<uID>/attributes', methods=collMethods)
+def attributes(uID):
+    return fh.collection('attributes', request, [('short', str)],
+                         fh.getSchema.attribute(), mr, j, uID)
+
+
+@app.route(apipath + '/users/<uID>/attributes/<short>', methods=itemMethods)
+def attribute(uID, short):
+    return fh.item('attributes', request, [('short', str)],
+                   fh.getSchema.attribute(), mr, j, uID, short)
+
+
+@app.route(apipath + '/users/<uID>/goals', methods=collMethods)
+def goals(uID):
+    return fh.collection('goals', request, [('name', str)],
+                         fh.getSchema.attribute(), mr, j, uID)
+
+
+@app.route(apipath + '/users/<uID>/goals/<name>', methods=itemMethods)
+def goal(uID, name):
+    return fh.item('goals', request, [('name', str)], fh.getSchema.goal(), mr,
+                   j, uID, name)
+
+
+@app.route(apipath + '/users/<uID>/settings', methods=['GET', 'PATCH'])
+def settings(uID):
+    userOrError = fh.manageAuth(uID, request)
+    if type(userOrError) == dict:
+        user = userOrError
+    else:
+        return userOrError
+
+    _settings = user['settings']
+
+    if request.method == 'GET':
+        return mr(j(_settings))
+
+    elif request.method == 'PATCH':
+        try:
+            validBody = fh.assertRequest(
+                request, schema=fh.getSchema.settings())
+        except KeyError:
+            return hRes.BadRequest()
+
+        settings = dict(_settings)
+        settings.update(validBody)
+
+        if settings != _settings:
+            user['settings'] = settings
+            try:
+                dba.setUserByKey(user, '_id')
+            except:
+                return hRes.InternalServer()
+
+        return mr(j(settings), 200)
 
 
 if __name__ == "__main__":

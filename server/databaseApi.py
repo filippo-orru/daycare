@@ -11,12 +11,19 @@ db = dbC.DatabaseConnection()
 
 
 def login(key, value, p):
-    if not authUser(key, value, p):
-        return False
+    _user = authUser(key, value, p)
+    if not _user:
+        raise ValueError('invalid combo')
 
-    token = token_urlsafe(32)
+    if 'token' in _user:
+        token = _user['token']
+    else:
+        token = ''
 
-    db.update('users', [{key: value}, {'$set': {'token': token}}])
+    if len(token) < 32:
+        token = token_urlsafe(32)
+        db.update('users', [{key: value}, {'$set': {'token': token}}])
+
     return token
 
 
@@ -39,7 +46,7 @@ def authUser(key, value, p):
         return False
 
     if argon2.verify(p, result['password']):  # pw correct
-        return result['username']
+        return result
     else:
         return False
 
@@ -98,11 +105,11 @@ def getUsers(limit=50):
 
 
 def getUserByKey(key, value, popPw=True):
-    if key == '_id' and type(value) == str:
-        try:
-            value = ObjectId(value)
-        except bson.errors.InvalidId:
-            return None
+    if key == '_id':
+        value = toObjectId(value)
+    else:
+        value = tryToObjectId(value)
+
     user = db.find('users', {key: value})[0]
 
     user['_id'] = fromObjectId(user['_id'])
@@ -112,9 +119,22 @@ def getUserByKey(key, value, popPw=True):
     return json.loads(dumps(user))
 
 
-def setUserByKey(key, value, _user):
-    db.update('users', [{key: value}, {'$set': _user}])
-    newValue = _user[key]
+def setUserByKey(_user, key, value=None):
+    user = dict(loads(json.dumps(_user)))
+    if not value:
+        value = user.pop(key)
+
+    if key == '_id':
+        value = toObjectId(value)
+    else:
+        value = tryToObjectId(value)
+
+    db.update('users', [{key: value}, {'$set': user}])
+
+    if key in user:
+        newValue = user[key]
+    else:
+        newValue = value
     return getUserByKey(key, newValue)
 
 
@@ -157,12 +177,16 @@ def getDay(uID, date):
 
 def setDay(_day):
     day = dict(_day)
-    db.update('days', [{'_id': toObjectId(day['_id'])}, {'$set': day}])
+    dID = toObjectId(day.pop('_id'))
+    day['owner'] = toObjectId(day['owner'])
+    if not day['owner'] or not dID:
+        raise ValueError('invalid id or owner')
+    db.update('days', [{'_id': dID}, {'$set': day}])
 
 
 def deleteDay(_day):
     day = dict(_day)
-    db.delete('days', {'id': toObjectId(day['_id'])})
+    db.delete('days', {'_id': toObjectId(day['_id'])})
 
 
 def toObjectId(uID):
@@ -170,6 +194,13 @@ def toObjectId(uID):
         return ObjectId(uID)
     except bson.errors.InvalidId:
         raise ValueError('Invalid ID')
+
+
+def tryToObjectId(uID):
+    try:
+        return ObjectId(uID)
+    except bson.errors.InvalidId:
+        return uID
 
 
 def fromObjectId(field):

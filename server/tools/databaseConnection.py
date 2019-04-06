@@ -80,7 +80,7 @@ class DatabaseConnection():
         '''
         Example: delete('users', {"age": {"$lt": 18}})
         '''
-        return self._db[database].delete(query)
+        return self._db[database].delete_one(query)
 
     def delete_many(self, database, query):
         return self._db[database].delete_many(query)

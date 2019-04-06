@@ -32,6 +32,7 @@ user:
           type: string
         description:
           type: string
+          default: ""
         deadline:
           type: datetime
           default: null
