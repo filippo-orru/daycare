@@ -20,6 +20,11 @@ collMethods = ['GET', 'POST', 'DELETE']
 itemMethods = ['GET', 'PATCH', 'DELETE']
 
 
+@app.route('/')
+def index():
+    return 'No page'
+
+
 @app.route(apipath + '/login', methods=['POST'])
 def login():
     try:

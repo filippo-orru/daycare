@@ -1,10 +1,11 @@
 module Main exposing (main)
 
+import Array exposing (Array)
 import Browser
 import Decoders exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick, onInput)
+import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode as D
 import Json.Encode as E
@@ -18,7 +19,8 @@ import Json.Encode as E
 type alias Model =
     { loginState : ViewLoginState
     , userLoadState : LoadState
-    , errormsg : Maybe Http.Error
+    , userPatchState : LoadState
+    , errormsg : Maybe String
     , editState : EditState
     }
 
@@ -31,6 +33,7 @@ init () =
             , state = LoadingStateIdle
             }
       , userLoadState = LoadingStateIdle
+      , userPatchState = LoadingStateIdle
       , editState =
             { goalEditState = Nothing
             , attributeEditState = Nothing
@@ -47,6 +50,7 @@ type Msg
     | UserLoginLoaded (Result Http.Error String)
     | UserContentLoaded (Result Http.Error UserContent)
     | ViewMessages ViewMessage
+    | LoadedPart LoadedPart
 
 
 type alias ViewLoginState =
@@ -56,14 +60,29 @@ type alias ViewLoginState =
     }
 
 
-type UserLoadState
+type ViewPatchState
     = LoadState
 
 
 type alias UserContent =
     { email : String
-    , attributes : List Attribute
-    , goals : List Goal
+    , attributes : Array Attribute
+    , goals : Array Goal
+    }
+
+
+type alias Attribute =
+    { short_ : String
+    , short : String
+    , name : String
+    , description : Maybe String
+    }
+
+
+type alias Goal =
+    { name : String
+    , description : Maybe String
+    , deadline : Maybe String
     }
 
 
@@ -88,15 +107,30 @@ type alias AttributeEditState =
 type LoadState
     = LoadingStateIdle
     | LoadingStateWait
-    | LoadingStateError Http.Error
-    | LoadingStateSuccess UserContent
+    | LoadingStateError (Maybe Http.Error)
+    | LoadingStateSuccess (Maybe SuccessContent)
     | LoginStateSuccess String
 
 
+type SuccessContent
+    = UserContent_ UserContent
+
+
+type LoadedPart
+    = LoadedAttribute (Result Http.Error Attribute)
+
+
 type ViewMessage
-    = ViewSetUsername String
-    | ViewSetPassword String
-    | ViewEditLItem
+    = UpdateUsername String
+    | UpdatePassword String
+    | UpdateAttribute AttributeKey
+
+
+type AttributeKey
+    = Short Int String
+    | Name Int String
+    | Description Int String
+    | Send Int
 
 
 main =
@@ -128,24 +162,126 @@ update msg model =
                     ( setLoginStateLoadingstate model (LoginStateSuccess token), Cmd.none )
 
                 Err message ->
-                    ( setLoginStateLoadingstate model (LoadingStateError message), Cmd.none )
+                    ( setLoginStateLoadingstate model (LoadingStateError <| Just message), Cmd.none )
 
         UserContentLoaded result ->
             case result of
                 Ok content ->
-                    ( { model | userLoadState = LoadingStateSuccess content }, Cmd.none )
+                    ( { model | userLoadState = LoadingStateSuccess (Just <| UserContent_ content) }, Cmd.none )
 
                 Err message ->
-                    ( { model | userLoadState = LoadingStateError message }, Cmd.none )
+                    ( { model | userLoadState = LoadingStateError <| Just message }, Cmd.none )
 
-        ViewMessages (ViewSetUsername u) ->
+        ViewMessages (UpdateUsername u) ->
             ( setLoginStateUsername model u, Cmd.none )
 
-        ViewMessages (ViewSetPassword p) ->
+        ViewMessages (UpdatePassword p) ->
             ( setLoginStatePassword model p, Cmd.none )
 
-        ViewMessages ViewEditLItem ->
-            ( model, Cmd.none )
+        ViewMessages (UpdateAttribute (Short index value)) ->
+            case model.userLoadState of
+                LoadingStateSuccess successcontent ->
+                    case successcontent of
+                        Just (UserContent_ content) ->
+                            let
+                                eCont =
+                                    case Array.get index content.attributes of
+                                        Just att_ ->
+                                            { content | attributes = Array.set index { att_ | short = value } content.attributes }
+
+                                        Nothing ->
+                                            content
+                            in
+                            ( { model | userLoadState = LoadingStateSuccess (Just <| UserContent_ eCont), userPatchState = LoadingStateWait }, Cmd.none )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+                _ ->
+                    ( { model | userLoadState = LoadingStateError <| Just Http.NetworkError }, Cmd.none )
+
+        ViewMessages (UpdateAttribute (Name index value)) ->
+            case model.userLoadState of
+                LoadingStateSuccess successcontent ->
+                    case successcontent of
+                        Just (UserContent_ content) ->
+                            let
+                                eCont =
+                                    case Array.get index content.attributes of
+                                        Just att_ ->
+                                            { content | attributes = Array.set index { att_ | name = value } content.attributes }
+
+                                        Nothing ->
+                                            content
+                            in
+                            ( { model | userLoadState = LoadingStateSuccess (Just <| UserContent_ eCont), userPatchState = LoadingStateWait }, Cmd.none )
+
+                        Nothing ->
+                            ( { model | userLoadState = LoadingStateError Nothing }, Cmd.none )
+
+                _ ->
+                    ( { model | userLoadState = LoadingStateError <| Just Http.NetworkError }, Cmd.none )
+
+        ViewMessages (UpdateAttribute (Description index value)) ->
+            case model.userLoadState of
+                LoadingStateSuccess successcontent ->
+                    case successcontent of
+                        Just (UserContent_ content) ->
+                            let
+                                eCont =
+                                    case Array.get index content.attributes of
+                                        Just att_ ->
+                                            { content | attributes = Array.set index { att_ | description = Just value } content.attributes }
+
+                                        Nothing ->
+                                            content
+                            in
+                            ( { model | userLoadState = LoadingStateSuccess (Just <| UserContent_ eCont), userPatchState = LoadingStateWait }, Cmd.none )
+
+                        Nothing ->
+                            ( { model | userLoadState = LoadingStateError Nothing }, Cmd.none )
+
+                _ ->
+                    ( { model | userLoadState = LoadingStateError <| Just Http.NetworkError }, Cmd.none )
+
+        ViewMessages (UpdateAttribute (Send index)) ->
+            let
+                h =
+                    Debug.log "received" "send attribute update"
+            in
+            case model.userLoadState of
+                LoadingStateSuccess successcontent ->
+                    case successcontent of
+                        Just (UserContent_ content) ->
+                            let
+                                att =
+                                    Array.get index content.attributes
+                            in
+                            case att of
+                                Just value ->
+                                    case model.loginState.state of
+                                        LoginStateSuccess token ->
+                                            ( model, updateAttributes token value )
+
+                                        _ ->
+                                            ( model, Cmd.none )
+
+                                Nothing ->
+                                    ( model, Cmd.none )
+
+                        Nothing ->
+                            ( { model | userLoadState = LoadingStateError Nothing }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        LoadedPart (LoadedAttribute result) ->
+            case result of
+                Ok att ->
+                    ( { model | userPatchState = LoadingStateSuccess Nothing }, Cmd.none )
+
+                Err error ->
+                    ( { model | errormsg = Just "Error while updating" }, Cmd.none )
 
 
 setLoginStateUsername : Model -> String -> Model
@@ -182,6 +318,36 @@ setLoginStateLoadingstate model state =
             { oldVs | state = state }
     in
     { model | loginState = newVs }
+
+
+updateAttributes : String -> Attribute -> Cmd Msg
+updateAttributes token attribute =
+    Http.request
+        { method = "PATCH"
+        , timeout = Nothing
+        , tracker = Nothing
+        , body = Http.jsonBody <| encodeAttribute attribute
+        , headers = [ Http.header "token" token ]
+        , url = "http://localhost:5000/api/v3/users/me/attributes/" ++ attribute.short_
+        , expect = Http.expectJson (LoadedPart << LoadedAttribute) attributeDecoder
+        }
+
+
+encodeAttribute : Attribute -> E.Value
+encodeAttribute attribute =
+    case attribute.description of
+        Just desc ->
+            E.object
+                [ ( "short", E.string attribute.short )
+                , ( "name", E.string attribute.name )
+                , ( "description", E.string desc )
+                ]
+
+        Nothing ->
+            E.object
+                [ ( "short", E.string attribute.short )
+                , ( "name", E.string attribute.name )
+                ]
 
 
 
@@ -240,29 +406,16 @@ userLoadStateDecoder : D.Decoder UserContent
 userLoadStateDecoder =
     D.map3 UserContent
         (D.field "email" D.string)
-        (D.field "attributes" (D.list attributeDecoder))
-        (D.field "goals" (D.list goalDecoder))
-
-
-type alias Attribute =
-    { short : String
-    , name : String
-    , description : Maybe String
-    }
+        (D.field "attributes" (D.array attributeDecoder))
+        (D.field "goals" (D.array goalDecoder))
 
 
 attributeDecoder =
-    D.map3 Attribute
+    D.map4 Attribute
+        (D.field "short" D.string)
         (D.field "short" D.string)
         (D.field "name" D.string)
         (D.maybe (D.field "description" D.string))
-
-
-type alias Goal =
-    { name : String
-    , description : Maybe String
-    , deadline : Maybe String
-    }
 
 
 goalDecoder =
@@ -275,80 +428,133 @@ goalDecoder =
 view : Model -> Html Msg
 view model =
     div []
-        (case model.loginState.state of
-            LoginStateSuccess token ->
-                case model.userLoadState of
-                    LoadingStateSuccess user ->
-                        [ div []
-                            [ text "Loaded Successfully" ]
-                        , div []
-                            [ text ("email: " ++ user.email) ]
-                        , div []
-                            [ text "Attributes: "
-                            , user.attributes
-                                |> List.map
-                                    (\att ->
-                                        case att.description of
-                                            Just desc ->
-                                                ( att, [ att.short, ": ", att.name, " (", desc, ")" ] )
+        [ -- div []
+          -- [ case model.errormsg of
+          --     Just val ->
+          --         text ("Error" ++ val)
+          --     Nothing ->
+          --         text "No error "
+          -- ]
+          div []
+            (case model.loginState.state of
+                LoginStateSuccess token ->
+                    case model.userLoadState of
+                        LoadingStateSuccess successcontent ->
+                            case successcontent of
+                                Just (UserContent_ user) ->
+                                    [ div []
+                                        [ text "Loaded Successfully" ]
+                                    , div []
+                                        [ text ("email: " ++ user.email) ]
+                                    , div []
+                                        [ text "Attributes: "
+                                        , user.attributes
+                                            |> Array.indexedMap
+                                                (\index att ->
+                                                    case att.description of
+                                                        Just desc ->
+                                                            [ Html.form [ Html.Events.onSubmit <| ViewMessages <| UpdateAttribute <| Send index ]
+                                                                [ input
+                                                                    [ value att.short
+                                                                    , onInput (ViewMessages << UpdateAttribute << Short index)
+                                                                    ]
+                                                                    []
+                                                                , input
+                                                                    [ value att.name
+                                                                    , onInput (ViewMessages << UpdateAttribute << Name index)
+                                                                    ]
+                                                                    []
+                                                                , input
+                                                                    [ value desc
+                                                                    , onInput (ViewMessages << UpdateAttribute << Description index)
+                                                                    ]
+                                                                    []
+                                                                , div [] []
+                                                                ]
+                                                            ]
 
-                                            Nothing ->
-                                                ( att, [ att.short, ": ", att.name ] )
-                                    )
-                                -- |> Debug.toString
-                                -- |> String.join ", "
-                                -- |> List.map ()
-                                |> List.map
+                                                        -- [ att.short, ": ", att.name, " (", desc, ")" ]
+                                                        Nothing ->
+                                                            [ Html.form [ Html.Events.onSubmit <| ViewMessages <| UpdateAttribute <| Send index ]
+                                                                [ input
+                                                                    [ value att.short
+                                                                    , onInput (ViewMessages << UpdateAttribute << Short index)
+                                                                    ]
+                                                                    []
+                                                                , input
+                                                                    [ value att.name
+                                                                    , onInput (ViewMessages << UpdateAttribute << Name index)
+                                                                    ]
+                                                                    []
+                                                                ]
+                                                            ]
+                                                )
+                                            |> Array.map
+                                                (\item ->
+                                                    item
+                                                        -- |> List.map div []
+                                                        |> li []
+                                                        |> List.singleton
+                                                        |> div []
+                                                )
+                                            |> Array.toList
+                                            |> ul []
+                                            |> List.singleton
+                                            |> div []
 
-                            -- |> viewTextListToUl
+                                        -- |> viewTextListToUl
+                                        ]
+                                    , div [] []
+                                    , div []
+                                        [ text "Goals:" ]
+
+                                    -- , user.goals
+                                    --     |> Array.map
+                                    --         (\goal ->
+                                    --             case goal.description of
+                                    --                 Just desc ->
+                                    --                     [ goal.name, " (", desc, ")" ]
+                                    --                 Nothing ->
+                                    --                     [ goal.name ]
+                                    --         )
+                                    --     -- |> List.map
+                                    --     |> Array.indexedMap text
+                                    ]
+
+                                Nothing ->
+                                    [ text "An error occured. No Usercontent was loaded" ]
+
+                        LoadingStateError error ->
+                            [ div []
+                                (viewResponseError error)
+                            , div []
+                                [ text ("Logged in! Token: " ++ token)
+                                , div []
+                                    [ button [ onClick LoadUserContent ] [ text "Load Content" ]
+                                    ]
+                                ]
                             ]
-                        , div [] []
-                        , div []
-                            [ text "Goals:" ]
-                        , user.goals
-                            |> List.map
-                                (\goal ->
-                                    case goal.description of
-                                        Just desc ->
-                                            [ goal.name, " (", desc, ")" ]
 
-                                        Nothing ->
-                                            [ goal.name ]
-                                )
-                            -- |> List.map
-                            |> viewTextListToUl model
-                        ]
-
-                    LoadingStateError error ->
-                        [ div []
-                            (viewResponseError error)
-                        , div []
+                        _ ->
                             [ text ("Logged in! Token: " ++ token)
                             , div []
                                 [ button [ onClick LoadUserContent ] [ text "Load Content" ]
                                 ]
                             ]
-                        ]
 
-                    _ ->
-                        [ text ("Logged in! Token: " ++ token)
-                        , div []
-                            [ button [ onClick LoadUserContent ] [ text "Load Content" ]
-                            ]
-                        ]
+                LoadingStateIdle ->
+                    viewLoginForm model.loginState (text "Login to get token.")
 
-            LoadingStateIdle ->
-                viewLoginForm model.loginState (text "Login to get token.")
+                LoadingStateWait ->
+                    viewLoginForm model.loginState (text "Loading...")
 
-            LoadingStateWait ->
-                viewLoginForm model.loginState (text "Loading...")
+                LoadingStateError error ->
+                    viewResponseError error
 
-            LoadingStateError error ->
-                viewResponseError error
-
-            _ ->
-                [ text "oh no" ]
-        )
+                _ ->
+                    [ text "oh no" ]
+            )
+        ]
 
 
 
@@ -358,61 +564,61 @@ view model =
 viewLoginForm loginState appendix =
     [ div []
         [ text "Username:"
-        , input [ placeholder "username", value loginState.username, onInput (ViewMessages << ViewSetUsername) ] []
+        , input [ placeholder "username", value loginState.username, onInput (ViewMessages << UpdateUsername) ] []
         ]
     , div []
         [ text "Password:"
-        , input [ placeholder "Password", value loginState.password, onInput (ViewMessages << ViewSetPassword) ] []
+        , input [ placeholder "Password", value loginState.password, onInput (ViewMessages << UpdatePassword) ] []
         ]
     , div []
         [ button [ onClick LoadUserLogin ] [ text "Login" ] ]
-    , div []
-        [ appendix ]
+    , div [] [ appendix ]
     ]
 
 
-viewResponseError : Http.Error -> List (Html Msg)
-viewResponseError error =
-    [ case error of
-        Http.BadStatus code ->
-            -- text ("Could not get token. Status " ++ String.fromInt code)
-            text
-                ("Could not get token."
-                    ++ (case code of
-                            401 ->
-                                "Wrong Username or Password."
+viewResponseError : Maybe Http.Error -> List (Html Msg)
+viewResponseError err =
+    [ case err of
+        Just error ->
+            case error of
+                Http.BadStatus code ->
+                    -- text ("Could not get token. Status " ++ String.fromInt code)
+                    text
+                        ("Could not get token."
+                            ++ (case code of
+                                    401 ->
+                                        "Wrong Username or Password."
 
-                            500 ->
-                                "Server Error."
+                                    500 ->
+                                        "Server Error."
 
-                            _ ->
-                                "Status: " ++ String.fromInt code
-                       )
-                )
+                                    _ ->
+                                        "Status: " ++ String.fromInt code
+                               )
+                        )
 
-        _ ->
-            text ("Could not get token. Error occured. :: " ++ Debug.toString error)
+                _ ->
+                    text ("Could not get token. Error occured. :: " ++ Debug.toString error)
+
+        Nothing ->
+            text "a nondescript error occured"
     ]
 
 
-viewTextToLi : List String -> Html Msg
-viewTextToLi textList =
-    textList
-        |> String.concat
-        |> text
-        |> List.singleton
-        |> (++) [ button [ onClick (ViewMessages ViewEditLItem) ] [ text "Edit" ] ]
-        |> List.reverse
-        |> li []
 
-
-
--- viewTextListToUl : Model -> List (List String) -> Html Msg
-
-
-viewTextListToUl textList =
-    textList
-        |> List.map viewTextToLi
-        |> Html.ul []
-        |> List.singleton
-        |> div []
+-- viewTextToLi : List String -> Html Msg
+-- viewTextToLi textList =
+--     textList
+--         |> String.concat
+--         |> text
+--         |> List.singleton
+--         |> (++) [ button [ onClick (ViewMessages ViewEditLItem) ] [ text "Edit" ] ]
+--         |> List.reverse
+--         |> li []
+-- viewTextListToUl : List (List String) -> Html Msg
+-- viewTextListToUl liList =
+--     liList
+--         |> List.map viewTextToLi
+--         |> Html.ul []
+--         |> List.singleton
+--         |> div []

@@ -1,4 +1,4 @@
-start "" "W:/Filippo/Development/_Git/daycare.code-workspace"
+start "" "C:\Users\fefe\AppData\Local\Programs\Microsoft VS Code\Code.exe"
 start "" "C:\Users\fefe\AppData\Local\Postman\Update.exe" --processStart "Postman.exe"
 start "" "W:\Filippo\Development\_Git\daycare\runFlask.bat"
 REM start "" "vscode://file/W:/Filippo/Development/_Git/daycare/"
