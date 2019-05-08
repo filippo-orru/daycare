@@ -6,6 +6,7 @@ import Decoders exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
+import Html.Extra as Html
 import Http
 import Json.Decode as D
 import Json.Encode as E
@@ -19,9 +20,10 @@ import Json.Encode as E
 type alias Model =
     { loginState : ViewLoginState
     , userLoadState : LoadState
-    , userPatchState : LoadState
+    , userPatchState : ViewPatchState
     , errormsg : Maybe String
-    , editState : EditState
+
+    -- , editState : EditState
     }
 
 
@@ -33,11 +35,15 @@ init () =
             , state = LoadingStateIdle
             }
       , userLoadState = LoadingStateIdle
-      , userPatchState = LoadingStateIdle
-      , editState =
-            { goalEditState = Nothing
-            , attributeEditState = Nothing
+      , userPatchState =
+            { state = LoadingStateIdle
+            , editing = Nothing
             }
+
+      --   , editState =
+      --         { goalEditState = Nothing
+      --         , attributeEditState = Nothing
+      --         }
       , errormsg = Nothing
       }
     , Cmd.none
@@ -60,8 +66,10 @@ type alias ViewLoginState =
     }
 
 
-type ViewPatchState
-    = LoadState
+type alias ViewPatchState =
+    { state : LoadState
+    , editing : Maybe EditState
+    }
 
 
 type alias UserContent =
@@ -80,28 +88,22 @@ type alias Attribute =
 
 
 type alias Goal =
-    { name : String
+    { name_ : String
+    , name : String
     , description : Maybe String
     , deadline : Maybe String
     }
 
 
-type alias EditState =
-    { goalEditState : Maybe GoalEditState
-    , attributeEditState : Maybe AttributeEditState
-    }
+type EditState
+    = GEditState_ Int Goal
+    | AEditState_ Int Attribute
 
 
-type alias GoalEditState =
-    { id : Int
-    , content : Attribute
-    }
 
-
-type alias AttributeEditState =
-    { id : Int
-    , content : Attribute
-    }
+-- type KeyTypes
+--     = KeyGoal
+--     | KeyAttribute
 
 
 type LoadState
@@ -112,25 +114,45 @@ type LoadState
     | LoginStateSuccess String
 
 
+
+-- | LoginStateSuccess String
+
+
 type SuccessContent
     = UserContent_ UserContent
 
 
+
+-- | String_ String
+
+
 type LoadedPart
     = LoadedAttribute (Result Http.Error Attribute)
+    | LoadedGoal (Result Http.Error Goal)
 
 
 type ViewMessage
     = UpdateUsername String
     | UpdatePassword String
     | UpdateAttribute AttributeKey
+    | UpdateGoal GoalKey
+
+
+
+-- | TestMessage Int String
 
 
 type AttributeKey
-    = Short Int String
-    | Name Int String
-    | Description Int String
-    | Send Int
+    = AShort Int String
+    | AName Int String
+    | ADescription Int String
+    | ASend Int
+
+
+type GoalKey
+    = GName Int String
+    | GDescription Int String
+    | GSend Int
 
 
 main =
@@ -178,77 +200,7 @@ update msg model =
         ViewMessages (UpdatePassword p) ->
             ( setLoginStatePassword model p, Cmd.none )
 
-        ViewMessages (UpdateAttribute (Short index value)) ->
-            case model.userLoadState of
-                LoadingStateSuccess successcontent ->
-                    case successcontent of
-                        Just (UserContent_ content) ->
-                            let
-                                eCont =
-                                    case Array.get index content.attributes of
-                                        Just att_ ->
-                                            { content | attributes = Array.set index { att_ | short = value } content.attributes }
-
-                                        Nothing ->
-                                            content
-                            in
-                            ( { model | userLoadState = LoadingStateSuccess (Just <| UserContent_ eCont), userPatchState = LoadingStateWait }, Cmd.none )
-
-                        _ ->
-                            ( model, Cmd.none )
-
-                _ ->
-                    ( { model | userLoadState = LoadingStateError <| Just Http.NetworkError }, Cmd.none )
-
-        ViewMessages (UpdateAttribute (Name index value)) ->
-            case model.userLoadState of
-                LoadingStateSuccess successcontent ->
-                    case successcontent of
-                        Just (UserContent_ content) ->
-                            let
-                                eCont =
-                                    case Array.get index content.attributes of
-                                        Just att_ ->
-                                            { content | attributes = Array.set index { att_ | name = value } content.attributes }
-
-                                        Nothing ->
-                                            content
-                            in
-                            ( { model | userLoadState = LoadingStateSuccess (Just <| UserContent_ eCont), userPatchState = LoadingStateWait }, Cmd.none )
-
-                        Nothing ->
-                            ( { model | userLoadState = LoadingStateError Nothing }, Cmd.none )
-
-                _ ->
-                    ( { model | userLoadState = LoadingStateError <| Just Http.NetworkError }, Cmd.none )
-
-        ViewMessages (UpdateAttribute (Description index value)) ->
-            case model.userLoadState of
-                LoadingStateSuccess successcontent ->
-                    case successcontent of
-                        Just (UserContent_ content) ->
-                            let
-                                eCont =
-                                    case Array.get index content.attributes of
-                                        Just att_ ->
-                                            { content | attributes = Array.set index { att_ | description = Just value } content.attributes }
-
-                                        Nothing ->
-                                            content
-                            in
-                            ( { model | userLoadState = LoadingStateSuccess (Just <| UserContent_ eCont), userPatchState = LoadingStateWait }, Cmd.none )
-
-                        Nothing ->
-                            ( { model | userLoadState = LoadingStateError Nothing }, Cmd.none )
-
-                _ ->
-                    ( { model | userLoadState = LoadingStateError <| Just Http.NetworkError }, Cmd.none )
-
-        ViewMessages (UpdateAttribute (Send index)) ->
-            let
-                h =
-                    Debug.log "received" "send attribute update"
-            in
+        ViewMessages (UpdateAttribute (AShort index value)) ->
             case model.userLoadState of
                 LoadingStateSuccess successcontent ->
                     case successcontent of
@@ -256,32 +208,270 @@ update msg model =
                             let
                                 att =
                                     Array.get index content.attributes
+
+                                eCont =
+                                    case att of
+                                        Just att_ ->
+                                            { content | attributes = Array.set index { att_ | short = value } content.attributes }
+
+                                        Nothing ->
+                                            content
+
+                                up =
+                                    { state = model.userPatchState.state
+                                    , editing =
+                                        case att of
+                                            Just att_ ->
+                                                Just (AEditState_ index att_)
+
+                                            Nothing ->
+                                                Nothing
+                                    }
                             in
-                            case att of
-                                Just value ->
-                                    case model.loginState.state of
-                                        LoginStateSuccess token ->
-                                            ( model, updateAttributes token value )
+                            ( { model | userLoadState = LoadingStateSuccess (Just <| UserContent_ eCont), userPatchState = up }, Cmd.none )
 
-                                        _ ->
-                                            ( model, Cmd.none )
-
-                                Nothing ->
-                                    ( model, Cmd.none )
-
-                        Nothing ->
+                        _ ->
                             ( { model | userLoadState = LoadingStateError Nothing }, Cmd.none )
 
                 _ ->
-                    ( model, Cmd.none )
+                    ( { model | userLoadState = LoadingStateError <| Just Http.NetworkError }, Cmd.none )
 
-        LoadedPart (LoadedAttribute result) ->
-            case result of
-                Ok att ->
-                    ( { model | userPatchState = LoadingStateSuccess Nothing }, Cmd.none )
+        ViewMessages (UpdateAttribute (AName index value)) ->
+            updateAttributePart model index value (AName index value)
 
-                Err error ->
-                    ( { model | errormsg = Just "Error while updating" }, Cmd.none )
+        ViewMessages (UpdateAttribute (ADescription index value)) ->
+            updateAttributePart model index value (ADescription index value)
+
+        ViewMessages (UpdateAttribute (ASend index)) ->
+            updateAttributeSend model index
+
+        ViewMessages (UpdateGoal (GName index value)) ->
+            updateGoalPart model index value (GName index value)
+
+        ViewMessages (UpdateGoal (GDescription index value)) ->
+            updateGoalPart model index value (GName index value)
+
+        ViewMessages (UpdateGoal (GSend index)) ->
+            updateGoalSend model index
+
+        LoadedPart part ->
+            -- (LoadedAttribute result) ->
+            let
+                up =
+                    { state = LoadingStateSuccess Nothing
+                    , editing = Nothing
+                    }
+
+                successful =
+                    case part of
+                        LoadedAttribute (Ok _) ->
+                            True
+
+                        LoadedGoal (Ok _) ->
+                            True
+
+                        _ ->
+                            False
+            in
+            if successful then
+                ( { model | userPatchState = up }, loadUser model.loginState )
+
+            else
+                ( { model | userPatchState = { editing = Nothing, state = LoadingStateError Nothing } }, Cmd.none )
+
+
+
+-- ViewMessages (TestMessage index string) ->
+--     ( { model | errormsg = Just ("Element with index " ++ String.fromInt index ++ " has value " ++ string) }, Cmd.none )
+
+
+updateAttributePart : Model -> Int -> String -> AttributeKey -> ( Model, Cmd Msg )
+updateAttributePart model index value attPart =
+    case model.userLoadState of
+        LoadingStateSuccess maybecontent ->
+            case maybecontent of
+                Just (UserContent_ content) ->
+                    let
+                        att =
+                            Array.get index content.attributes
+
+                        eCont =
+                            case att of
+                                Just att_ ->
+                                    case attPart of
+                                        AShort _ _ ->
+                                            { content | attributes = Array.set index { att_ | name = value } content.attributes }
+
+                                        AName _ _ ->
+                                            { content | attributes = Array.set index { att_ | name = value } content.attributes }
+
+                                        ADescription _ _ ->
+                                            { content | attributes = Array.set index { att_ | description = Just value } content.attributes }
+
+                                        _ ->
+                                            content
+
+                                Nothing ->
+                                    content
+
+                        up =
+                            { state = model.userPatchState.state
+                            , editing =
+                                case att of
+                                    Just att_ ->
+                                        Just (AEditState_ index att_)
+
+                                    Nothing ->
+                                        Nothing
+                            }
+                    in
+                    ( { model | userLoadState = LoadingStateSuccess (Just <| UserContent_ eCont), userPatchState = up }, Cmd.none )
+
+                _ ->
+                    ( { model | userLoadState = LoadingStateError Nothing }, Cmd.none )
+
+        _ ->
+            ( { model | userLoadState = LoadingStateError <| Just Http.NetworkError }, Cmd.none )
+
+
+updateAttributeSend : Model -> Int -> ( Model, Cmd Msg )
+updateAttributeSend model index =
+    let
+        --
+        h =
+            ""
+    in
+    case model.userLoadState of
+        LoadingStateSuccess successcontent ->
+            let
+                up =
+                    { state = LoadingStateWait
+                    , editing = model.userPatchState.editing
+                    }
+
+                upE =
+                    { up | state = LoadingStateError Nothing }
+
+                responseError =
+                    ( { model | userPatchState = upE }, Cmd.none )
+            in
+            case successcontent of
+                Just (UserContent_ content) ->
+                    let
+                        att =
+                            Array.get index content.attributes
+                    in
+                    case att of
+                        Just value ->
+                            case model.loginState.state of
+                                LoginStateSuccess token ->
+                                    ( { model | userPatchState = up }, updateAttributes token value )
+
+                                -- ( { model | userLoadState = LoadingStateWait, userPatchState = up }, updateAttributes token value )
+                                _ ->
+                                    responseError
+
+                        Nothing ->
+                            responseError
+
+                _ ->
+                    ( { model | userPatchState = up }, Cmd.none )
+
+        _ ->
+            ( model, Cmd.none )
+
+
+updateGoalPart : Model -> Int -> String -> GoalKey -> ( Model, Cmd Msg )
+updateGoalPart model index value goalPart =
+    case model.userLoadState of
+        LoadingStateSuccess maybecontent ->
+            case maybecontent of
+                Just (UserContent_ content) ->
+                    let
+                        goal =
+                            Array.get index content.goals
+
+                        eCont =
+                            case goal of
+                                Just goal_ ->
+                                    case goalPart of
+                                        GName _ _ ->
+                                            { content | goals = Array.set index { goal_ | name = value } content.goals }
+
+                                        GDescription _ _ ->
+                                            { content | goals = Array.set index { goal_ | description = Just value } content.goals }
+
+                                        _ ->
+                                            content
+
+                                Nothing ->
+                                    content
+
+                        up =
+                            { state = model.userPatchState.state
+                            , editing =
+                                case goal of
+                                    Just goal_ ->
+                                        Just (GEditState_ index goal_)
+
+                                    Nothing ->
+                                        Nothing
+                            }
+                    in
+                    ( { model | userLoadState = LoadingStateSuccess (Just <| UserContent_ eCont), userPatchState = up }, Cmd.none )
+
+                _ ->
+                    ( { model | userLoadState = LoadingStateError Nothing }, Cmd.none )
+
+        _ ->
+            ( { model | userLoadState = LoadingStateError <| Just Http.NetworkError }, Cmd.none )
+
+
+updateGoalSend : Model -> Int -> ( Model, Cmd Msg )
+updateGoalSend model index =
+    let
+        --
+        h =
+            ""
+    in
+    case model.userLoadState of
+        LoadingStateSuccess successcontent ->
+            let
+                up =
+                    { state = LoadingStateWait
+                    , editing = model.userPatchState.editing
+                    }
+
+                upE =
+                    { up | state = LoadingStateError Nothing }
+
+                responseError =
+                    ( { model | userPatchState = upE }, Cmd.none )
+            in
+            case successcontent of
+                Just (UserContent_ content) ->
+                    let
+                        att =
+                            Array.get index content.goals
+                    in
+                    case att of
+                        Just value ->
+                            case model.loginState.state of
+                                LoginStateSuccess token ->
+                                    ( { model | userPatchState = up }, updateGoals token value )
+
+                                -- ( { model | userLoadState = LoadingStateWait, userPatchState = up }, updateAttributes token value )
+                                _ ->
+                                    responseError
+
+                        Nothing ->
+                            responseError
+
+                _ ->
+                    ( { model | userPatchState = up }, Cmd.none )
+
+        _ ->
+            ( model, Cmd.none )
 
 
 setLoginStateUsername : Model -> String -> Model
@@ -333,6 +523,19 @@ updateAttributes token attribute =
         }
 
 
+updateGoals : String -> Goal -> Cmd Msg
+updateGoals token goal =
+    Http.request
+        { method = "PATCH"
+        , timeout = Nothing
+        , tracker = Nothing
+        , body = Http.jsonBody <| encodeGoal goal
+        , headers = [ Http.header "token" token ]
+        , url = "http://localhost:5000/api/v3/users/me/goals/" ++ goal.name_
+        , expect = Http.expectJson (LoadedPart << LoadedGoal) goalDecoder
+        }
+
+
 encodeAttribute : Attribute -> E.Value
 encodeAttribute attribute =
     case attribute.description of
@@ -347,6 +550,21 @@ encodeAttribute attribute =
             E.object
                 [ ( "short", E.string attribute.short )
                 , ( "name", E.string attribute.name )
+                ]
+
+
+encodeGoal : Goal -> E.Value
+encodeGoal goal =
+    case goal.description of
+        Just desc ->
+            E.object
+                [ ( "name", E.string goal.name )
+                , ( "description", E.string desc )
+                ]
+
+        Nothing ->
+            E.object
+                [ ( "name", E.string goal.name )
                 ]
 
 
@@ -377,7 +595,7 @@ loadUser loginState =
                 }
 
         _ ->
-            Debug.todo "?? what is happening. Loading without success"
+            Debug.todo "?? requesting loading user without having logged in lul"
 
 
 login : ViewLoginState -> Cmd Msg
@@ -419,7 +637,8 @@ attributeDecoder =
 
 
 goalDecoder =
-    D.map3 Goal
+    D.map4 Goal
+        (D.field "name" D.string)
         (D.field "name" D.string)
         (D.maybe (D.field "description" D.string))
         (D.maybe (D.field "deadline" D.string))
@@ -442,91 +661,38 @@ view model =
                         LoadingStateSuccess successcontent ->
                             case successcontent of
                                 Just (UserContent_ user) ->
+                                    let
+                                        editing =
+                                            model.userPatchState.editing
+                                    in
                                     [ div []
-                                        [ text "Loaded Successfully" ]
-                                    , div []
                                         [ text ("email: " ++ user.email) ]
-                                    , div []
-                                        [ text "Attributes: "
-                                        , user.attributes
-                                            |> Array.indexedMap
-                                                (\index att ->
-                                                    case att.description of
-                                                        Just desc ->
-                                                            [ Html.form [ Html.Events.onSubmit <| ViewMessages <| UpdateAttribute <| Send index ]
-                                                                [ input
-                                                                    [ value att.short
-                                                                    , onInput (ViewMessages << UpdateAttribute << Short index)
-                                                                    ]
-                                                                    []
-                                                                , input
-                                                                    [ value att.name
-                                                                    , onInput (ViewMessages << UpdateAttribute << Name index)
-                                                                    ]
-                                                                    []
-                                                                , input
-                                                                    [ value desc
-                                                                    , onInput (ViewMessages << UpdateAttribute << Description index)
-                                                                    ]
-                                                                    []
-                                                                , div [] []
-                                                                ]
-                                                            ]
+                                    , text
+                                        (case editing of
+                                            Just edst ->
+                                                case edst of
+                                                    AEditState_ index att_ ->
+                                                        " ( editing index [" ++ String.fromInt index ++ "] with name " ++ att_.name ++ ")"
 
-                                                        -- [ att.short, ": ", att.name, " (", desc, ")" ]
-                                                        Nothing ->
-                                                            [ Html.form [ Html.Events.onSubmit <| ViewMessages <| UpdateAttribute <| Send index ]
-                                                                [ input
-                                                                    [ value att.short
-                                                                    , onInput (ViewMessages << UpdateAttribute << Short index)
-                                                                    ]
-                                                                    []
-                                                                , input
-                                                                    [ value att.name
-                                                                    , onInput (ViewMessages << UpdateAttribute << Name index)
-                                                                    ]
-                                                                    []
-                                                                ]
-                                                            ]
-                                                )
-                                            |> Array.map
-                                                (\item ->
-                                                    item
-                                                        -- |> List.map div []
-                                                        |> li []
-                                                        |> List.singleton
-                                                        |> div []
-                                                )
-                                            |> Array.toList
-                                            |> ul []
-                                            |> List.singleton
-                                            |> div []
+                                                    _ ->
+                                                        Debug.todo "implement goal"
 
-                                        -- |> viewTextListToUl
-                                        ]
+                                            Nothing ->
+                                                " ( not editing )"
+                                        )
+                                    , viewAttributes user model.userPatchState
                                     , div [] []
-                                    , div []
-                                        [ text "Goals:" ]
+                                    , viewGoals user model.userPatchState
 
-                                    -- , user.goals
-                                    --     |> Array.map
-                                    --         (\goal ->
-                                    --             case goal.description of
-                                    --                 Just desc ->
-                                    --                     [ goal.name, " (", desc, ")" ]
-                                    --                 Nothing ->
-                                    --                     [ goal.name ]
-                                    --         )
-                                    --     -- |> List.map
-                                    --     |> Array.indexedMap text
+                                    -- crepe?
                                     ]
 
-                                Nothing ->
+                                _ ->
                                     [ text "An error occured. No Usercontent was loaded" ]
 
                         LoadingStateError error ->
                             [ div []
-                                (viewResponseError error)
+                                (viewResponseHttpError error)
                             , div []
                                 [ text ("Logged in! Token: " ++ token)
                                 , div []
@@ -534,6 +700,9 @@ view model =
                                     ]
                                 ]
                             ]
+
+                        LoadingStateWait ->
+                            [ text "Loading..." ]
 
                         _ ->
                             [ text ("Logged in! Token: " ++ token)
@@ -549,16 +718,20 @@ view model =
                     viewLoginForm model.loginState (text "Loading...")
 
                 LoadingStateError error ->
-                    viewResponseError error
+                    viewResponseHttpError error
 
                 _ ->
-                    [ text "oh no" ]
+                    viewUnknownError
             )
         ]
 
 
 
 -- viewLoginForm : ViewLoginState -> Html Msg -> List (Html Msg)
+
+
+viewUnknownError =
+    [ div [] [ text "An unknown Error occurred" ] ]
 
 
 viewLoginForm loginState appendix =
@@ -576,8 +749,8 @@ viewLoginForm loginState appendix =
     ]
 
 
-viewResponseError : Maybe Http.Error -> List (Html Msg)
-viewResponseError err =
+viewResponseHttpError : Maybe Http.Error -> List (Html Msg)
+viewResponseHttpError err =
     [ case err of
         Just error ->
             case error of
@@ -605,20 +778,151 @@ viewResponseError err =
     ]
 
 
+viewAttributes : UserContent -> ViewPatchState -> Html Msg
+viewAttributes user userPatchState =
+    div []
+        [ text "Attributes: "
+        , user.attributes
+            |> Array.indexedMap
+                (\index att -> viewAttribute index att userPatchState)
+            |> Array.toList
+            |> ul []
+            |> List.singleton
+            |> div []
 
--- viewTextToLi : List String -> Html Msg
--- viewTextToLi textList =
---     textList
---         |> String.concat
---         |> text
---         |> List.singleton
---         |> (++) [ button [ onClick (ViewMessages ViewEditLItem) ] [ text "Edit" ] ]
---         |> List.reverse
---         |> li []
--- viewTextListToUl : List (List String) -> Html Msg
--- viewTextListToUl liList =
---     liList
---         |> List.map viewTextToLi
---         |> Html.ul []
---         |> List.singleton
---         |> div []
+        -- |> viewTextListToUl
+        ]
+
+
+viewAttribute : Int -> Attribute -> ViewPatchState -> Html Msg
+viewAttribute index att patchState =
+    let
+        short =
+            att.short
+
+        name =
+            att.name
+
+        patching =
+            patchState.state == LoadingStateWait
+    in
+    -- [ Html.form [ onSubmit <| ViewMessages <| TestMessage index "u" ]
+    li []
+        [ div []
+            [ Html.form
+                [ onSubmit <| ViewMessages <| UpdateAttribute <| ASend index ]
+                [ input
+                    [ value short
+                    , onInput (ViewMessages << UpdateAttribute << AShort index)
+                    , disabled patching
+                    ]
+                    []
+                , input
+                    [ value name
+                    , onInput (ViewMessages << UpdateAttribute << AName index)
+                    , disabled patching
+                    ]
+                    []
+                , case att.description of
+                    Just desc ->
+                        input
+                            [ value desc
+                            , onInput (ViewMessages << UpdateAttribute << ADescription index)
+                            , disabled patching
+                            ]
+                            []
+
+                    Nothing ->
+                        Html.nothing
+                , case patchState.editing of
+                    Just (AEditState_ index_ att_) ->
+                        -- if editstate == AEditState_  then
+                        if index_ == index then
+                            if patching then
+                                text "(...)"
+
+                            else
+                                input
+                                    [ value "Ok", type_ "submit" ]
+                                    []
+
+                        else
+                            Html.nothing
+
+                    _ ->
+                        --   else
+                        Html.nothing
+                ]
+            ]
+        ]
+
+
+viewGoals : UserContent -> ViewPatchState -> Html Msg
+viewGoals user userPatchState =
+    div []
+        [ text "Goals: "
+        , user.goals
+            |> Array.indexedMap
+                (\index goal -> viewGoal index goal userPatchState)
+            |> Array.toList
+            |> ul []
+            |> List.singleton
+            |> div []
+
+        -- |> viewTextListToUl
+        ]
+
+
+viewGoal : Int -> Goal -> ViewPatchState -> Html Msg
+viewGoal index goal patchState =
+    let
+        patching =
+            patchState.state == LoadingStateWait
+
+        editing =
+            patchState.editing
+    in
+    -- [ Html.form [ onSubmit <| ViewMessages <| TestMessage index "u" ]
+    li []
+        [ div []
+            [ Html.form
+                [ onSubmit <| ViewMessages <| UpdateGoal <| GSend index ]
+                [ input
+                    [ value goal.name
+                    , onInput (ViewMessages << UpdateGoal << GName index)
+                    , disabled patching
+                    ]
+                    []
+                , case goal.description of
+                    Just desc ->
+                        input
+                            [ value desc
+                            , onInput (ViewMessages << UpdateGoal << GDescription index)
+                            , disabled patching
+                            ]
+                            []
+
+                    Nothing ->
+                        Html.nothing
+                , case patchState.editing of
+                    Just (GEditState_ index_ att_) ->
+                        -- if editstate == AEditState_  then
+                        if index_ == index then
+                            if patching then
+                                text "(...)"
+
+                            else
+                                input
+                                    [ value "Ok", type_ "submit" ]
+                                    []
+                            -- else if patching then
+
+                        else
+                            Html.nothing
+
+                    _ ->
+                        --   else
+                        Html.nothing
+                ]
+            ]
+        ]
