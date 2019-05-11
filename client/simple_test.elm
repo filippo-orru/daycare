@@ -16,30 +16,61 @@ main =
         }
 
 
-type alias Model =
-    { clist : Array NestedRecord }
-
-
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.none
 
 
-init : () -> ( Model, Cmd Msg )
-init () =
-    ( { clist =
-            Array.fromList
-                [ { content = "Initial content" }
-                , { content = "Ini" }
-                , { content = "hahaha" }
-                ]
-      }
-    , Cmd.none
-    )
+type Model
+    = Login LoginModel
+    | Main MainModel
+
+
+type alias LoginModel =
+    { username : String
+    , password : String
+    }
+
+
+type alias MainModel =
+    { patchState : PatchState }
+
+
+type alias PatchState =
+    { state : PatchLoadState
+    , editingKey : Maybe Editstate
+    }
+
+
+type PatchLoadState
+    = PatchIdle
+    | PatchWait
+    | PatchSuccess
+    | PatchError
+
+
+type Editstate
+    = Attribute_ AttributeKey
+    | Goal_ GoalKey
+
+
+type AttributeKey
+    = AShort Int String
+    | AName Int String
+
+
+type GoalKey
+    = GName Int String
+    | GDesc Int String
 
 
 type Msg
-    = Update Int String
+    = GotLoginMessage LoginMsg
+
+
+type LoginMsg
+    = UpdateUsername String
+    | UpdatePassword String
 
 
 type alias NestedRecord =
@@ -47,46 +78,27 @@ type alias NestedRecord =
     }
 
 
+init : () -> ( Model, Cmd Msg )
+init () =
+    ( Login { username = "fefe", password = "123456" }
+    , Cmd.none
+    )
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        Update i input ->
-            -- let
-            --     i =
-            --         ""
-            --     -- String.slice ";" input
-            -- in
-            case Array.get i model.clist of
-                Just value ->
-                    ( { model | clist = Array.set i { value | content = input } model.clist }, Cmd.none )
+    case ( msg, model ) of
+        ( GotLoginMessage subMsg, Login login ) ->
+            loginUpdate subMsg login
 
-                Nothing ->
-                    ( model, Cmd.none )
+        ( _, _ ) ->
+            ( model, Cmd.none )
+
+
+loginUpdate subm =
+    ()
 
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ div []
-            (model.clist
-                |> Array.toList
-                |> List.map (\item -> item.content ++ "  ")
-                |> List.map text
-            )
-        , div []
-            (model.clist
-                |> Array.indexedMap
-                    (\index item ->
-                        input
-                            [ value item.content
-                            , Html.Events.onInput (Update index)
-                            ]
-                            []
-                    )
-                |> Array.toList
-            )
-        ]
-
-
-
--- todo: take intelligence from here and apply back to daycare.elm
+    div [] []
