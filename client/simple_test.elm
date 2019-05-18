@@ -5,7 +5,7 @@ import Browser
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick, onInput)
+import Html.Events exposing (onClick, onInput, onMouseOut, onMouseOver)
 import Route
 import Session exposing (Session)
 import Url exposing (Url)
@@ -39,32 +39,6 @@ type alias LoginModel =
     { username : String
     , session : Session
     }
-
-
-type alias AppModel =
-    { session : Session
-    , editing : Editing
-    , atts : Array Attribute
-    }
-
-
-type alias Attribute =
-    { short : String
-    , name : String
-    , description : Maybe String
-    }
-
-
-type alias Editing =
-    { state : EditState
-    , content : Maybe String
-    }
-
-
-type EditState
-    = EditAttName Int
-    | EditAttShort Int
-    | NoEdit
 
 
 type alias HomeModel =
@@ -113,6 +87,35 @@ view model =
                 ]
 
 
+type alias AppModel =
+    { session : Session
+    , viewState : Maybe ViewState
+    , attributes : Array Attribute
+    }
+
+
+type alias Attribute =
+    { short : String
+    , name : String
+    , description : Maybe String
+    }
+
+
+type ViewState
+    = Editing ContentKey
+    | Hovering ContentKey
+
+
+type ContentKey
+    = AttributeKey Int Attribute
+
+
+type EditState
+    = EditAttName Int
+    | EditAttShort Int
+    | NoEdit
+
+
 viewApp : AppModel -> List (Html AppMsg)
 viewApp model =
     [ div []
@@ -121,31 +124,49 @@ viewApp model =
         ]
     , Array.indexedMap
         (\index att ->
-            let
-                state =
-                    model.editing.state
-            in
-            [ if state == EditAttShort index then
-                div [ class "noblock" ]
-                    [ input [ value att.short ] [] ]
+            div []
+                [ let
+                    vS =
+                        model.viewState
 
-              else
-                div [ class "noblock", onClick (EditAttributeShort index) ]
-                    [ text att.short ]
-            , if state == EditAttName index then
-                div [ class "noblock" ]
-                    [ text "Name: ", input [ value att.name, onInput (UpdateAttributeName index) ] [] ]
+                    key =
+                        AttributeKey index att
 
-              else
-                div [ class "noblock", onClick (EditAttributeName index) ]
-                    [ text ("Name: " ++ att.name) ]
-            ]
-                |> li []
+                    description =
+                        case att.description of
+                            Just desc ->
+                                desc
+
+                            Nothing ->
+                                "no description"
+
+                    btn t =
+                        button [ onClick <| ClickExpand key ] [ text t ]
+
+                    att_ =
+                        [ text att.short, text " - ", text att.name ]
+                  in
+                  div
+                    [ onMouseOver <| HoverEnter key
+                    , onMouseOut <| HoverLeave key
+                    ]
+                    (if vS == Just (Editing (AttributeKey index att)) then
+                        att_ ++ [ btn "⇧", div [] [ text description ] ]
+                        -- replace att_ with inputs (value=att.stuff)
+
+                     else if vS == Just (Hovering (AttributeKey index att)) then
+                        att_ ++ [ btn "⇩" ]
+
+                     else
+                        att_
+                    )
+                ]
         )
-        model.atts
+        model.attributes
         |> Array.toList
         |> div []
-    , text <| Debug.toString model.editing
+
+    -- , text <| Debug.toString model.editing
     ]
 
 
@@ -173,13 +194,6 @@ type LoginMsg
 
 type HomeMsg
     = Homa
-
-
-type AppMsg
-    = EditAttributeShort Int
-    | EditAttributeName Int
-    | UpdateAttributeShort Int String
-    | UpdateAttributeName Int String
 
 
 type Msg
@@ -263,31 +277,80 @@ updateLogin msg model =
             ( { model | username = u }, Cmd.none )
 
 
+type AppMsg
+    = EditAttributeShort Int
+    | EditAttributeName Int
+    | UpdateAttributeShort Int String
+    | UpdateAttributeName Int String
+    | HoverEnter ContentKey
+    | HoverLeave ContentKey
+    | ClickExpand ContentKey
+
+
+
+-- | Retract ContentKey
+
+
 updateApp : AppMsg -> AppModel -> ( AppModel, Cmd msg )
 updateApp msg model =
     let
+        none mmodel =
+            ( mmodel, Cmd.none )
+
         editing =
-            model.editing
+            case model.viewState of
+                Just (Editing _) ->
+                    True
+
+                _ ->
+                    False
     in
     case msg of
-        EditAttributeShort i ->
-            ( { model | editing = { editing | state = EditAttShort i, content = Nothing } }, Cmd.none )
+        HoverEnter key ->
+            if editing then
+                none model
 
-        EditAttributeName i ->
-            ( { model | editing = { editing | state = EditAttName i, content = Nothing } }, Cmd.none )
+            else
+                none { model | viewState = Just <| Hovering key }
 
-        UpdateAttributeShort i content ->
-            ( { model | editing = { editing | content = Just content } }, Cmd.none )
+        HoverLeave key ->
+            if editing then
+                none model
 
-        UpdateAttributeName i content ->
-            ( { model | editing = { editing | content = Just content } }, Cmd.none )
+            else
+                none { model | viewState = Nothing }
+
+        ClickExpand key ->
+            if model.viewState == Just (Editing key) then
+                none { model | viewState = Nothing }
+
+            else
+                none { model | viewState = Just <| Editing key }
+
+        _ ->
+            none model
 
 
-updateEditState transform model =
-    { model | editing = transform model.editing }
 
+{- let
+       editing =
+           model.editing
+   in
+   case msg of
+       EditAttributeShort i ->
+           ( { model | editing = { editing | state = EditAttShort i, content = Nothing } }, Cmd.none )
 
+       EditAttributeName i ->
+           ( { model | editing = { editing | state = EditAttName i, content = Nothing } }, Cmd.none )
 
+       UpdateAttributeShort i content ->
+           ( { model | editing = { editing | content = Just content } }, Cmd.none )
+
+       UpdateAttributeName i content ->
+           ( { model | editing = { editing | content = Just content } }, Cmd.none )
+-}
+-- updateEditState transform model =
+--     { model | editing = transform model.editing }
 -- ( _, _ ) ->
 --     ( model, Cmd.none )
 
@@ -299,13 +362,15 @@ updateWith toModel toMsg model ( subModel, subCmd ) =
 appinit : Session -> ( AppModel, Cmd msg )
 appinit session =
     ( { session = session
-      , editing = { state = NoEdit, content = Nothing }
-      , atts =
+
+      --   , editing = { state = NoEdit, content = Nothing }
+      , attributes =
             Array.fromList
                 [ { short = "o", name = "one", description = Nothing }
                 , { short = "t", name = "two", description = Just "Second att" }
                 , { short = "U", name = "threee", description = Just "ehh" }
                 ]
+      , viewState = Nothing
       }
     , Cmd.none
     )
