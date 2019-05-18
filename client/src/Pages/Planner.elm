@@ -1,4 +1,4 @@
-module Pages.Planner exposing (Attribute, AttributeKey(..), DayKey(..), EditState(..), Goal, GoalKey(..), Model, Msg(..), PatchState, User, UserLoadState(..), UserPart(..), decodeAttribute, decodeGoal, decodeUserLoadState, encodeAttribute, encodeGoal, init, loadDays, loadUser, toSession, update, updateAttributePart, updateAttributeSend, updateAttributes, updateGoalPart, updateGoalSend, updateGoals, view, viewAttribute, viewAttributes, viewDay, viewDays, viewGoal, viewGoals, viewResponseHttpError)
+module Pages.Planner exposing (Attribute, AttributeKey(..), DayKey(..), EditState(..), Goal, GoalKey(..), Model, Msg(..), User, UserLoadState(..), UserPart(..), decodeAttribute, decodeGoal, decodeUserLoadState, encodeAttribute, encodeGoal, init, loadDays, loadUser, toSession, update, updateAttributePart, updateAttributeSend, updateAttributes, updateGoalPart, updateGoalSend, updateGoals, view, viewAttribute, viewAttributes, viewGoal, viewGoals, viewResponseHttpError)
 
 import Array exposing (Array)
 import Days exposing (Date, Day, Days, Task)
@@ -18,7 +18,8 @@ type alias Model =
     { session : Session
     , userLoadState : UserLoadState
     , userPatchState : UserPatchState
-    , days : Days.Model
+
+    -- , days : Days.Model
     , errormsg : Maybe String
     }
 
@@ -95,7 +96,7 @@ init session =
         model =
             { session = session
             , userLoadState = UserLoadingStateIdle
-            , viewPatchState =
+            , userPatchState =
                 { state = UserLoadingStateIdle
                 , editing = Nothing
                 }
@@ -174,9 +175,8 @@ update msg model =
                 ( UpdateGoal (GSend index), _ ) ->
                     updateGoalSend model token index
 
-                ( UpdateDay part, _ ) ->
-                    Days.updatePart model part
-
+                -- ( UpdateDay part, _ ) ->
+                --     Days.updatePart model part
                 ( LoadedUserPart part, _ ) ->
                     -- (LoadedAttribute result) ->
                     let
@@ -197,23 +197,23 @@ update msg model =
                                     False
                     in
                     if successful then
-                        ( { model | viewPatchState = up }, loadUser token )
+                        ( { model | userPatchState = up }, loadUser token )
 
                     else
-                        ( { model | viewPatchState = { editing = Nothing, state = UserLoadingStateError Nothing } }, Cmd.none )
+                        ( { model | userPatchState = { editing = Nothing, state = UserLoadingStateError Nothing } }, Cmd.none )
 
-                ( LoadDays, _ ) ->
-                    ( { model | dayLoadState = Days.LoadingStateWait }, loadDays token )
+                {- ( LoadDays, _ ) ->
+                       ( { model | dayLoadState = Days.LoadingStateWait }, loadDays token )
 
-                -- ( model, Cmd.none )
-                ( LoadedDays result, _ ) ->
-                    case result of
-                        Ok days ->
-                            ( { model | dayLoadState = Days.LoadingStateSuccess <| Just days }, Cmd.none )
+                   -- ( model, Cmd.none )
+                   ( LoadedDays result, _ ) ->
+                       case result of
+                           Ok days ->
+                               ( { model | dayLoadState = Days.LoadingStateSuccess <| Just days }, Cmd.none )
 
-                        Err message ->
-                            ( { model | dayLoadState = Days.LoadingStateError <| Just message }, Cmd.none )
-
+                           Err message ->
+                               ( { model | dayLoadState = Days.LoadingStateError <| Just message }, Cmd.none )
+                -}
                 ( _, _ ) ->
                     ( model, Cmd.none )
 
@@ -243,7 +243,7 @@ updateAttributePart model index value attPart =
                             content
 
                 up =
-                    { state = model.viewPatchState.state
+                    { state = model.userPatchState.state
                     , editing =
                         case Array.get index content.attributes of
                             Just att ->
@@ -253,7 +253,7 @@ updateAttributePart model index value attPart =
                                 Nothing
                     }
             in
-            ( { model | userLoadState = UserLoadingStateSuccess (Just eCont), viewPatchState = up }, Cmd.none )
+            ( { model | userLoadState = UserLoadingStateSuccess (Just eCont), userPatchState = up }, Cmd.none )
 
         _ ->
             ( { model | userLoadState = UserLoadingStateError <| Just Http.NetworkError }, Cmd.none )
@@ -264,14 +264,14 @@ updateAttributeSend model token index =
     let
         up =
             { state = UserLoadingStateWait
-            , editing = model.viewPatchState.editing
+            , editing = model.userPatchState.editing
             }
 
         upE =
             { up | state = UserLoadingStateError Nothing }
 
         responseError =
-            ( { model | viewPatchState = upE }, Cmd.none )
+            ( { model | userPatchState = upE }, Cmd.none )
     in
     case model.userLoadState of
         UserLoadingStateSuccess (Just content) ->
@@ -281,7 +281,7 @@ updateAttributeSend model token index =
             in
             case att of
                 Just value ->
-                    ( { model | viewPatchState = up }, updateAttributes token value )
+                    ( { model | userPatchState = up }, updateAttributes token value )
 
                 Nothing ->
                     responseError
@@ -315,7 +315,7 @@ updateGoalPart model index value goalPart =
                             content
 
                 up =
-                    { state = model.viewPatchState.state
+                    { state = model.userPatchState.state
                     , editing =
                         case maybegoal of
                             Just goal_ ->
@@ -325,7 +325,7 @@ updateGoalPart model index value goalPart =
                                 Nothing
                     }
             in
-            ( { model | userLoadState = UserLoadingStateSuccess (Just eCont), viewPatchState = up }, Cmd.none )
+            ( { model | userLoadState = UserLoadingStateSuccess (Just eCont), userPatchState = up }, Cmd.none )
 
         _ ->
             ( { model | userLoadState = UserLoadingStateError <| Just Http.NetworkError }, Cmd.none )
@@ -336,14 +336,14 @@ updateGoalSend model token index =
     let
         up =
             { state = UserLoadingStateWait
-            , editing = model.viewPatchState.editing
+            , editing = model.userPatchState.editing
             }
 
         upE =
             { up | state = UserLoadingStateError Nothing }
 
         responseError =
-            ( { model | viewPatchState = upE }, Cmd.none )
+            ( { model | userPatchState = upE }, Cmd.none )
     in
     case model.userLoadState of
         UserLoadingStateSuccess (Just content) ->
@@ -353,7 +353,7 @@ updateGoalSend model token index =
             in
             case att of
                 Just value ->
-                    ( { model | viewPatchState = up }, updateGoals token value )
+                    ( { model | userPatchState = up }, updateGoals token value )
 
                 Nothing ->
                     responseError
@@ -398,15 +398,16 @@ view model =
         UserLoadingStateSuccess (Just user) ->
             let
                 editing =
-                    model.viewPatchState.editing
+                    model.userPatchState.editing
             in
             [ div []
                 [ text ("email: " ++ user.email) ]
-            , viewAttributes user model.viewPatchState
+            , viewAttributes user model.userPatchState
             , div [] []
-            , viewGoals user model.viewPatchState
+            , viewGoals user model.userPatchState
             , div [] []
-            , viewDays model.dayLoadState model.viewPatchState
+
+            -- , viewDays model.dayLoadState model.userPatchState
             ]
 
         UserLoadingStateError error ->
@@ -451,13 +452,13 @@ viewResponseHttpError err =
     ]
 
 
-viewAttributes : User -> PatchState -> Html Msg
-viewAttributes user viewPatchState =
+viewAttributes : User -> UserPatchState -> Html Msg
+viewAttributes user userPatchState =
     div []
         [ text "Attributes: "
         , user.attributes
             |> Array.indexedMap
-                (\index att -> lazy3 viewAttribute index att viewPatchState)
+                (\index att -> lazy3 viewAttribute index att userPatchState)
             |> Array.toList
             |> ul []
             -- |> lazy
@@ -468,7 +469,7 @@ viewAttributes user viewPatchState =
         ]
 
 
-viewAttribute : Int -> Attribute -> PatchState -> Html Msg
+viewAttribute : Int -> Attribute -> UserPatchState -> Html Msg
 viewAttribute index att patchState =
     let
         patching =
@@ -527,13 +528,13 @@ viewAttribute index att patchState =
         ]
 
 
-viewGoals : User -> PatchState -> Html Msg
-viewGoals user viewPatchState =
+viewGoals : User -> UserPatchState -> Html Msg
+viewGoals user userPatchState =
     div []
         [ text "Goals: "
         , user.goals
             |> Array.indexedMap
-                (\index goal -> viewGoal index goal viewPatchState)
+                (\index goal -> viewGoal index goal userPatchState)
             |> Array.toList
             |> ul []
             |> List.singleton
@@ -543,7 +544,7 @@ viewGoals user viewPatchState =
         ]
 
 
-viewGoal : Int -> Goal -> PatchState -> Html Msg
+viewGoal : Int -> Goal -> UserPatchState -> Html Msg
 viewGoal index goal patchState =
     let
         patching =
@@ -598,38 +599,38 @@ viewGoal index goal patchState =
         ]
 
 
-viewDays : Days.LoadState -> PatchState -> Html Msg
-viewDays dayLoadState patchState =
-    div []
-        [ let
-            ( btntext, btnwait ) =
-                case dayLoadState of
-                    Days.LoadingStateIdle ->
-                        ( "Load days", False )
 
-                    Days.LoadingStateWait ->
-                        ( "Loading...", True )
+{-
+   viewDays : Days.LoadState -> PatchState -> Html Msg
+   viewDays dayLoadState patchState =
+       div []
+           [ let
+               ( btntext, btnwait ) =
+                   case dayLoadState of
+                       Days.LoadingStateIdle ->
+                           ( "Load days", False )
 
-                    _ ->
-                        ( "Reload days", False )
-          in
-          button [ onClick LoadDays, disabled btnwait ] [ text btntext ]
-        , case dayLoadState of
-            Days.LoadingStateError err ->
-                div []
-                    [ text "An Error occurred while fetching days."
-                    , text <| " error: " ++ Debug.toString err
-                    ]
+                       Days.LoadingStateWait ->
+                           ( "Loading...", True )
 
-            Days.LoadingStateSuccess days ->
-                Days.viewDays days
+                       _ ->
+                           ( "Reload days", False )
+             in
+             button [ onClick LoadDays, disabled btnwait ] [ text btntext ]
+           , case dayLoadState of
+               Days.LoadingStateError err ->
+                   div []
+                       [ text "An Error occurred while fetching days."
+                       , text <| " error: " ++ Debug.toString err
+                       ]
 
-            _ ->
-                Html.nothing
-        ]
+               Days.LoadingStateSuccess days ->
+                   Days.viewDays days
 
-
-
+               _ ->
+                   Html.nothing
+           ]
+-}
 -- Http
 
 
