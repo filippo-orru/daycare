@@ -89,8 +89,9 @@ view model =
 
 type alias AppModel =
     { session : Session
-    , viewState : Maybe ViewState
+    , hovering : Maybe ContentKey
     , attributes : Array Attribute
+    , editing : Maybe ContentKey
     }
 
 
@@ -125,48 +126,99 @@ viewApp model =
     , Array.indexedMap
         (\index att ->
             div []
-                [ let
-                    vS =
-                        model.viewState
+                [ {- let
+                       vS =
+                           model.viewState
 
+                       key =
+                           AttributeKey index att
+
+                       description =
+                           case att.description of
+                               Just desc ->
+                                   desc
+
+                               Nothing ->
+                                   "no description"
+
+                       btn t =
+                           button [ onClick <| ClickExpand key ] [ text t ]
+
+                       att_ =
+                           [ text att.short, text " - ", text att.name ]
+                     in
+                     div
+                       [ onMouseOver <| HoverEnter key
+                       , onMouseOut <| HoverLeave key
+                       ]
+                       (if vS == Just (Editing (AttributeKey index att)) then
+                           att_ ++ [ btn "⇧", div [] [ text description ] ]
+                           -- replace att_ with inputs (value=att.stuff)
+
+                        else if vS == Just (Hovering (AttributeKey index att)) then
+                           att_ ++ [ btn "⇩" ]
+
+                        else
+                           att_
+                       )
+                  -}
+                  let
                     key =
                         AttributeKey index att
 
-                    description =
-                        case att.description of
-                            Just desc ->
-                                desc
-
-                            Nothing ->
-                                "no description"
+                    attHtml =
+                        [ text att.short, text " - ", text att.name ]
 
                     btn t =
-                        button [ onClick <| ClickExpand key ] [ text t ]
+                        button [ onClick <| ClickExpand (AttributeKey index att) ] [ text t ]
 
-                    att_ =
-                        [ text att.short, text " - ", text att.name ]
+                    ( editingThis, untouched ) =
+                        case model.editing of
+                            Just (AttributeKey index_ att_) ->
+                                if index == index_ && att == att_ then
+                                    ( Just att_, True )
+
+                                else if index == index_ then
+                                    ( Just att_, False )
+
+                                else
+                                    ( Nothing, False )
+
+                            _ ->
+                                ( Nothing, False )
                   in
                   div
-                    [ onMouseOver <| HoverEnter key
-                    , onMouseOut <| HoverLeave key
+                    [ onMouseOver <| HoverEvent key True
+                    , onMouseOut <| HoverEvent key False
                     ]
-                    (if vS == Just (Editing (AttributeKey index att)) then
-                        att_ ++ [ btn "⇧", div [] [ text description ] ]
-                        -- replace att_ with inputs (value=att.stuff)
+                    [ case editingThis of
+                        Just att_ ->
+                            let
+                                inputs =
+                                    [ input [ onInput (UpdateAttributeName index), value att_.name ] [] ]
+                            in
+                            if untouched then
+                                div []
+                                    [ text <| "untouched editing"
+                                    , btn "⇧"
+                                    , div [] inputs
+                                    ]
 
-                     else if vS == Just (Hovering (AttributeKey index att)) then
-                        att_ ++ [ btn "⇩" ]
+                            else
+                                div [] [ text "touched editing", btn "⇧", div [] inputs ]
 
-                     else
-                        att_
-                    )
+                        Nothing ->
+                            if model.hovering == Just (AttributeKey index att) then
+                                div [] [ text "hovering", btn "⇩" ]
+
+                            else
+                                text <| "nothing"
+                    ]
                 ]
         )
         model.attributes
         |> Array.toList
         |> div []
-
-    -- , text <| Debug.toString model.editing
     ]
 
 
@@ -282,8 +334,7 @@ type AppMsg
     | EditAttributeName Int
     | UpdateAttributeShort Int String
     | UpdateAttributeName Int String
-    | HoverEnter ContentKey
-    | HoverLeave ContentKey
+    | HoverEvent ContentKey Bool
     | ClickExpand ContentKey
 
 
@@ -298,37 +349,71 @@ updateApp msg model =
             ( mmodel, Cmd.none )
 
         editing =
-            case model.viewState of
-                Just (Editing _) ->
+            case model.editing of
+                Just _ ->
                     True
 
                 _ ->
                     False
     in
     case msg of
-        HoverEnter key ->
-            if editing then
-                none model
+        HoverEvent key hovering ->
+            if hovering then
+                none { model | hovering = Just key }
 
             else
-                none { model | viewState = Just <| Hovering key }
-
-        HoverLeave key ->
-            if editing then
-                none model
-
-            else
-                none { model | viewState = Nothing }
+                none { model | hovering = Nothing }
 
         ClickExpand key ->
-            if model.viewState == Just (Editing key) then
-                none { model | viewState = Nothing }
+            case model.editing of
+                Just key_ ->
+                    if key == key_ then
+                        none { model | editing = Nothing, hovering = Nothing }
 
-            else
-                none { model | viewState = Just <| Editing key }
+                    else
+                        case key_ of
+                            AttributeKey index att ->
+                                let
+                                    model_ =
+                                        updateAttribute model index att
+                                in
+                                none { model_ | editing = Nothing, hovering = Nothing }
+
+                _ ->
+                    none { model | editing = Just key, hovering = Nothing }
+
+        UpdateAttributeName index value ->
+            let
+                maybeAttribute =
+                    Array.get index model.attributes
+            in
+            case maybeAttribute of
+                Just attribute ->
+                    let
+                        newattribute =
+                            { attribute | name = value }
+                    in
+                    none { model | editing = Just (AttributeKey index newattribute) }
+
+                _ ->
+                    none model
 
         _ ->
             none model
+
+
+
+{- *** USE THIS FOR UPDATING ATTRIBUTE IN ARRAY ***   ***
+ -}
+
+
+updateAttribute : AppModel -> Int -> Attribute -> AppModel
+updateAttribute model index att =
+    let
+        attributes =
+            Array.set index att model.attributes
+    in
+    { model | attributes = attributes }
 
 
 
@@ -370,7 +455,8 @@ appinit session =
                 , { short = "t", name = "two", description = Just "Second att" }
                 , { short = "U", name = "threee", description = Just "ehh" }
                 ]
-      , viewState = Nothing
+      , editing = Nothing
+      , hovering = Nothing
       }
     , Cmd.none
     )

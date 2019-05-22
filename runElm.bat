@@ -1,3 +1,3 @@
 W:
 cd W:\Filippo\Development\_Git\daycare\client
-elm reactor
+elm-live daycare.elm -o

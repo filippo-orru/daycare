@@ -9,7 +9,7 @@ start "" "W:\Filippo\Development\_Git\daycare\runElm.bat"
 timeout 1
 REM start "" "C:\Users\fefe\AppData\Local\MongoDBCompassCommunity\MongoDBCompassCommunity.exe"
 start "" "https://web.whatsapp.com/"
-start "" "http://127.0.0.1:8000/daycare.elm"
+REM start "" "http://127.0.0.1:8000/daycare.elm"
 start "" "C:\Program Files (x86)\Google\Chrome\Application\chrome_proxy.exe"  --profile-directory=Default --app-id=aledibffcgceaeafhlfjpadbpnfneeig
 start "" "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"  --profile-directory=Default --app-id=pjibgclleladliembfgfagdaldikeohf
 REM start "" "W:\Filippo\Development\_Git\daycare\server\Schemes\export\apiScheme.html"
