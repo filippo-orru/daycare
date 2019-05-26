@@ -113,5 +113,5 @@ bak/
 database/
 exampleuser.json
 testExecute.py
-.gitignore
+elm.js
 */elm-stuff/

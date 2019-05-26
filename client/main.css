@@ -1,0 +1,11 @@
+.day {
+    width: 82%;
+    padding: 23px;
+    margin: 0px auto 0px auto;
+    display: block;
+    background: #FFFFFF;
+    color: #000000;
+    border-radius: 12px;
+    box-shadow: 2px 2px 16px -1px rgba(0, 0, 0, 0.3);
+    -webkit-box-shadow: 2px 2px 16px -1px rgba(0, 0, 0, 0.3);
+}

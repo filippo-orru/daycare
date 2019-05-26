@@ -16,7 +16,7 @@ import Session exposing (Session)
 
 type alias Model =
     { session : Session
-    , userLoadState : UserLoadState
+    , user : UserLoadState
     , viewState : ViewState
     , errormsg : Maybe String
     }
@@ -28,10 +28,10 @@ type alias Model =
 
 
 type UserLoadState
-    = UserLoadingStateIdle
-    | UserLoadingStateWait
-    | UserLoadingStateError (Maybe Http.Error)
-    | UserLoadingStateSuccess (Maybe User)
+    = UserLIdle
+    | UserLWait
+    | UserLError (Maybe Http.Error)
+    | UserLSuccess (Maybe User)
 
 
 type alias UserPatchState =
@@ -41,10 +41,16 @@ type alias UserPatchState =
 
 
 type alias ViewState =
-    { loading : Maybe ContentKey
+    { loading : Maybe ViewLoadState
     , hovering : Maybe ContentKey
     , editing : Maybe ContentKey
     }
+
+
+type ViewLoadState
+    = ViewLLoading
+    | ViewLError
+    | ViewLSuccess
 
 
 type alias User =
@@ -114,10 +120,10 @@ init session =
     let
         model =
             { session = session
-            , userLoadState = UserLoadingStateIdle
+            , user = UserLIdle
 
             -- , userPatchState =
-            --     { state = UserLoadingStateIdle
+            --     { state = UserLIdle
             --     , editing = Nothing
             --     }
             , viewState =
@@ -138,7 +144,7 @@ init session =
             ( model, Cmd.none )
 
         Just token ->
-            ( { model | userLoadState = UserLoadingStateWait }
+            ( { model | user = UserLWait }
             , loadUser token
             )
 
@@ -158,7 +164,7 @@ type Msg
     | LoadDays
     | LoadedDays (Result Http.Error Days)
     | HoverEvent ContentKey Bool
-    | ClickExpand ContentKey Bool
+    | ClickExpand ContentKey
     | ClickDiscardEdit ContentKey
 
 
@@ -174,8 +180,8 @@ update msg model =
             Session.cred model.session
 
         maybecontent =
-            case model.userLoadState of
-                UserLoadingStateSuccess content ->
+            case model.user of
+                UserLSuccess content ->
                     Just content
 
                 _ ->
@@ -185,13 +191,13 @@ update msg model =
         ( Just token, Nothing ) ->
             case msg of
                 LoadUserContent ->
-                    ( { model | userLoadState = UserLoadingStateWait }, loadUser token )
+                    ( { model | user = UserLWait }, loadUser token )
 
                 LoadedUserContent (Ok content) ->
-                    ( { model | userLoadState = UserLoadingStateSuccess (Just content) }, Cmd.none )
+                    ( { model | user = UserLSuccess (Just content) }, Cmd.none )
 
                 LoadedUserContent (Err message) ->
-                    ( { model | userLoadState = UserLoadingStateError <| Just message }, Cmd.none )
+                    ( { model | user = UserLError <| Just message }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -202,30 +208,6 @@ update msg model =
                     ( a, Cmd.none )
             in
             case msg of
-                {- UpdateAttributePart key value ->
-                       updateAttributePart model value key
-
-                   UpdateGoalPart (GoalKey index goal) key ->
-                       updateGoalPart model index key value
-
-                    UpdateAttribute (AName index value) ->
-                          updateAttributePart model index value (AName index value)
-
-                      UpdateAttribute (ADescription index value) ->
-                          updateAttributePart model index value (ADescription index value)
-
-                      UpdateAttribute (ASend index) ->
-                          updateAttributeSend model token index
-
-                      UpdateGoal (GName index value) ->
-                          updateGoalPart model index value (GName index value)
-
-                      UpdateGoal (GDescription index value) ->
-                          updateGoalPart model index value (GDescription index value)
-
-                      UpdateGoal (GSend index) ->
-                          updateGoalSend model token index
-                -}
                 ClickDiscardEdit key ->
                     cmdnone
                         { model
@@ -284,66 +266,67 @@ update msg model =
                                         model.viewState
                             }
 
-                ClickExpand key expanded ->
+                ClickExpand (AttributeKey index att) ->
                     let
                         vsNone =
                             { editing = Nothing, hovering = Nothing, loading = Nothing }
-                    
-                        case key of
-                            AttributeKey index att ->
--- todo better differentiaton between outcomes with at least one case to catch touched/untouched diff
-                        model_ =
-                            { model
-                                | userLoadState =
-                                    UserLoadingStateSuccess <| Just (updateAttribute user index att)
-                            }
+
+                        key =
+                            AttributeKey index att
+
+                        updateViewState cont =
+                            (\vs -> { vs | editing = cont }) model.viewState
+
+                        -- if expanded then
+                        -- save to model, retract and expand other (key)
+                        vsNothing =
+                            updateViewState Nothing
+
+                        vsNothingLoad =
+                            { vsNothing | loading = Just ViewLLoading }
+
+                        vsKey =
+                            updateViewState (Just key)
+
+                        vsKeyLoad =
+                            { vsKey | loading = Just ViewLLoading }
                     in
-                    if expanded && model.viewState.editing == Just key then
-                        Debug.todo "save to model and retract"
-                            cmdnone
-                            { model_ | viewState = vsNone }
+                    case model.viewState.editing of
+                        Just (AttributeKey index_ att_) ->
+                            let
+                                newAttributes =
+                                    Just { user | attributes = Array.set index_ att_ user.attributes }
+                            in
+                            if index == index_ && att == att_ then
+                                cmdnone { model | viewState = vsNothing }
 
-                    else if expanded then
-                        Debug.todo "save to model and expand other (key)"
-                            cmdnone
-                            { model_ | viewState = (\vs -> { vs | editing = key }) model.viewState }
+                            else if index == index_ then
+                                ( { model | user = UserLSuccess newAttributes, viewState = vsNothingLoad }, updateAttributes token att_ )
 
-                    else
-                        Debug.todo "expand"
-                            cmdnone
-                            { model | viewState = (\vs -> { vs | editing = key }) model.viewstate }
+                            else
+                                ( { model | user = UserLSuccess newAttributes, viewState = vsKeyLoad }, updateAttributes token att_ )
 
-                {- case model.viewState.editing of
-                   Just (AttributeKey index_ att) ->
-                       if key == AttributeKey index_ att then
-                           cmdnone { model | viewState = vsNone }
+                        -- cmdnone { model | viewState = vsKey }
+                        Just (GoalKey index_ goal_) ->
+                            let
+                                newGoals =
+                                    Just { user | goals = Array.set index_ goal_ user.goals }
+                            in
+                            ( { model | user = UserLSuccess newGoals, viewState = vsKeyLoad }, updateGoals token goal_ )
 
-                       else if index /= index_ then
-                           cmdnone
-                               { model_ | viewState = (\vs -> { vs | editing = Just key }) vsNone }
+                        Nothing ->
+                            cmdnone { model | viewState = vsKey }
 
-                       else
-                           ( { model_ | viewState = vsNone }, updateAttributes token att )
-
-                   _ ->
-                       cmdnone { model | viewState = (\vs -> { vs | editing = Just key }) model.viewState }
-                -}
                 -- UpdateDay part ->
                 --     Days.updatePart model part
                 LoadedUserPart (Ok key) ->
                     let
                         up =
-                            (\vs ->
-                                { vs
-                                    | loading = Just key
-                                    , editing = Nothing
-                                }
-                            )
-                                model.viewState
+                            (\vs -> { vs | loading = Just ViewLSuccess }) model.viewState
                     in
                     ( { model | viewState = up }, loadUser token )
 
-                -- ( { model | userPatchState = { editing = Nothing, state = UserLoadingStateError Nothing } }, Cmd.none )
+                -- ( { model | userPatchState = { editing = Nothing, state = UserLError Nothing } }, Cmd.none )
                 {- LoadDays ->
                        ( { model | dayLoadState = Days.LoadingStateWait }, loadDays token )
 
@@ -365,8 +348,8 @@ update msg model =
 
 updateAttributePart : Model -> Int -> AttributeKey -> String -> ( Model, Cmd Msg )
 updateAttributePart model index attKey value =
-    case model.userLoadState of
-        UserLoadingStateSuccess (Just content) ->
+    case model.user of
+        UserLSuccess (Just content) ->
             let
                 eCont =
                     case Array.get index content.attributes of
@@ -401,10 +384,10 @@ updateAttributePart model index attKey value =
                     )
                         model.viewState
             in
-            ( { model | userLoadState = UserLoadingStateSuccess (Just eCont), viewState = up }, Cmd.none )
+            ( { model | user = UserLSuccess (Just eCont), viewState = up }, Cmd.none )
 
         _ ->
-            ( { model | userLoadState = UserLoadingStateError <| Just Http.NetworkError }, Cmd.none )
+            ( { model | user = UserLError <| Just Http.NetworkError }, Cmd.none )
 
 
 updateAttributeSend : Model -> String -> Int -> ( Model, Cmd Msg )
@@ -413,8 +396,8 @@ updateAttributeSend model token index =
         up =
             (\vs -> { vs | loading = Nothing }) model.viewState
     in
-    case model.userLoadState of
-        UserLoadingStateSuccess (Just content) ->
+    case model.user of
+        UserLSuccess (Just content) ->
             let
                 att =
                     Array.get index content.attributes
@@ -437,8 +420,8 @@ updateAttribute user index att =
 
 updateGoalPart : Model -> Int -> String -> GoalKey -> ( Model, Cmd Msg )
 updateGoalPart model index value goalPart =
-    case model.userLoadState of
-        UserLoadingStateSuccess (Just content) ->
+    case model.user of
+        UserLSuccess (Just content) ->
             let
                 maybegoal =
                     Array.get index content.goals
@@ -473,10 +456,10 @@ updateGoalPart model index value goalPart =
                     )
                         model.viewState
             in
-            ( { model | userLoadState = UserLoadingStateSuccess (Just eCont), viewState = up }, Cmd.none )
+            ( { model | user = UserLSuccess (Just eCont), viewState = up }, Cmd.none )
 
         _ ->
-            ( { model | userLoadState = UserLoadingStateError <| Just Http.NetworkError }, Cmd.none )
+            ( { model | user = UserLError <| Just Http.NetworkError }, Cmd.none )
 
 
 updateGoalSend : Model -> String -> Int -> ( Model, Cmd Msg )
@@ -485,8 +468,8 @@ updateGoalSend model token index =
         up =
             { model | viewState = (\vs -> { vs | loading = Nothing }) model.viewState }
     in
-    case model.userLoadState of
-        UserLoadingStateSuccess (Just content) ->
+    case model.user of
+        UserLSuccess (Just content) ->
             let
                 att =
                     Array.get index content.goals
@@ -550,14 +533,19 @@ updateGoals token goal =
 
 view : Model -> List (Html Msg)
 view model =
-    case model.userLoadState of
-        UserLoadingStateSuccess (Just user) ->
-            let
-                editing =
-                    model.viewState.editing
-            in
+    case model.user of
+        UserLSuccess (Just user) ->
             [ div []
                 [ text ("email: " ++ user.email) ]
+            , case model.viewState.loading of
+                Just ViewLLoading ->
+                    text "..."
+
+                Just ViewLError ->
+                    text "error. Could not sync"
+
+                _ ->
+                    text "synchronized"
             , viewAttributes user model.viewState
             , div [] []
 
@@ -566,13 +554,13 @@ view model =
             -- , viewDays model.dayLoadState model.userPatchState
             ]
 
-        UserLoadingStateError error ->
+        UserLError error ->
             [ div [] (viewResponseHttpError error) ]
 
-        UserLoadingStateWait ->
+        UserLWait ->
             [ text "Loading content..." ]
 
-        UserLoadingStateIdle ->
+        UserLIdle ->
             [ text "You have to be logged in to view this page.", div [] [ a [ Route.href Route.Login ] [ text "Login" ] ] ]
 
         _ ->
@@ -686,13 +674,14 @@ viewAttribute index att viewState =
                     in
                     div []
                         [ --text "untouched editing"
-                          nameinput
+                          text att.short
+                        , nameinput
                         , if untouched then
                             text ""
 
                           else
                             button [ onClick (ClickDiscardEdit key) ] [ text "X" ]
-                        , button [ onClick <| ClickExpand key True ] [ text "⇧" ]
+                        , button [ onClick <| ClickExpand key ] [ text "⇧" ]
                         , div [] [ descinput ]
                         ]
 
@@ -700,7 +689,7 @@ viewAttribute index att viewState =
                     if viewState.hovering == Just (AttributeKey index att) then
                         div []
                             (attHtml
-                                ++ [ button [ onClick <| ClickExpand key False ] [ text "⇩" ]
+                                ++ [ button [ onClick <| ClickExpand key ] [ text "⇩" ]
                                    ]
                             )
 
@@ -730,7 +719,7 @@ viewGoal : Int -> Goal -> UserPatchState -> Html Msg
 viewGoal index goal patchState =
     let
         patching =
-            patchState.state == UserLoadingStateWait
+            patchState.state == UserLWait
 
         editing =
             patchState.editing
