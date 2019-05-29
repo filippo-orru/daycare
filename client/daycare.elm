@@ -26,7 +26,12 @@ main =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    case model of
+        Planner planner ->
+            Sub.map GotPlannerMsg (Planner.subscriptions planner)
+
+        _ ->
+            Sub.none
 
 
 init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )

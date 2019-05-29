@@ -1,4 +1,4 @@
-module Pages.Planner exposing (Attribute, AttributeKey(..), DayKey(..), EditState(..), Goal, GoalKey(..), Model, Msg(..), User, UserLoadState(..), UserPart(..), decodeAttribute, decodeGoal, decodeUserLoadState, encodeAttribute, encodeGoal, init, loadDays, loadUser, toSession, update, updateAttributePart, updateAttributeSend, updateAttributes, updateGoalPart, updateGoalSend, updateGoals, view, viewAttribute, viewAttributes, viewGoal, viewGoals, viewResponseHttpError)
+port module Pages.Planner exposing (Attribute, AttributeKey(..), ContentKey(..), DayKey(..), EditState(..), Goal, GoalKey(..), Model, Msg(..), User, UserLoadState(..), UserPart(..), UserPatchState, ViewLoadState(..), ViewState, decodeAttribute, decodeAttributeKey, decodeGoal, decodeGoalKey, decodeUserLoadState, editingPort, encodeAttribute, encodeGoal, indexFromPart, init, loadDays, loadUser, submitEditPort, subscriptions, toSession, update, updateAttribute, updateAttributePart, updateAttributeSend, updateAttributes, updateGoalPart, updateGoalSend, updateGoals, view, viewAttribute, viewAttributes, viewGoal, viewGoals, viewResponseHttpError)
 
 import Array exposing (Array)
 import Days exposing (Date, Day, Days, Task)
@@ -6,7 +6,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onMouseOut, onMouseOver, onSubmit)
 import Html.Extra as Html
-import Html.Lazy exposing (lazy, lazy2, lazy3)
+import Html.Lazy exposing (lazy, lazy2, lazy3, lazy4)
 import Http
 import Json.Decode as D
 import Json.Encode as E
@@ -166,6 +166,8 @@ type Msg
     | HoverEvent ContentKey Bool
     | ClickExpand ContentKey
     | ClickDiscardEdit ContentKey
+    | ClickRemove ContentKey
+    | CommitEdit
 
 
 
@@ -215,6 +217,13 @@ update msg model =
                                 (\vs -> { vs | editing = Nothing, loading = Nothing }) model.viewState
                         }
 
+                ClickRemove key ->
+                    let
+                        attributes =
+                            ""
+                    in
+                    cmdnone model
+
                 EditingAttributePart part value ->
                     let
                         maybeAttribute =
@@ -226,7 +235,7 @@ update msg model =
                     case maybeAttribute of
                         Just attribute ->
                             let
-                                newattribute =
+                                userNewattribute =
                                     case part of
                                         AName _ ->
                                             { attribute | name = value }
@@ -241,7 +250,7 @@ update msg model =
                                 { model
                                     | viewState =
                                         (\vs ->
-                                            { vs | editing = Just (AttributeKey index newattribute) }
+                                            { vs | editing = Just (AttributeKey index userNewattribute) }
                                         )
                                             model.viewState
                                 }
@@ -294,31 +303,54 @@ update msg model =
                     case model.viewState.editing of
                         Just (AttributeKey index_ att_) ->
                             let
-                                newAttributes =
+                                userNewAttributes =
                                     Just { user | attributes = Array.set index_ att_ user.attributes }
                             in
                             if index == index_ && att == att_ then
+                                {- dont update but retract -}
                                 cmdnone { model | viewState = vsNothing }
 
                             else if index == index_ then
-                                ( { model | user = UserLSuccess newAttributes, viewState = vsNothingLoad }, updateAttributes token att_ )
+                                {- update and retract -}
+                                ( { model | user = UserLSuccess userNewAttributes, viewState = vsNothingLoad }, updateAttributes token att_ )
 
                             else
-                                ( { model | user = UserLSuccess newAttributes, viewState = vsKeyLoad }, updateAttributes token att_ )
+                                {- update and expand -}
+                                ( { model | user = UserLSuccess userNewAttributes, viewState = vsKeyLoad }, Cmd.batch [ updateAttributes token att_, editingPort () ] )
 
-                        -- cmdnone { model | viewState = vsKey }
                         Just (GoalKey index_ goal_) ->
                             let
                                 newGoals =
                                     Just { user | goals = Array.set index_ goal_ user.goals }
                             in
-                            ( { model | user = UserLSuccess newGoals, viewState = vsKeyLoad }, updateGoals token goal_ )
+                            {- update goal and expand -}
+                            ( { model | user = UserLSuccess newGoals, viewState = vsKeyLoad }, Cmd.batch [ updateGoals token goal_, editingPort () ] )
 
                         Nothing ->
-                            cmdnone { model | viewState = vsKey }
+                            {- expand -}
+                            ( { model | viewState = vsKey }, editingPort () )
 
                 -- UpdateDay part ->
                 --     Days.updatePart model part
+                CommitEdit ->
+                    let
+                        model_ =
+                            { model | viewState = (\vs_ -> { vs_ | editing = Nothing }) model.viewState }
+                    in
+                    case model.viewState.editing of
+                        Just (AttributeKey index att) ->
+                            let
+                                userNewAttributes =
+                                    Just { user | attributes = Array.set index att user.attributes }
+                            in
+                            ( { model_ | user = UserLSuccess userNewAttributes }, updateAttributes token att )
+
+                        Just (GoalKey index goal) ->
+                            ( model_, Cmd.none )
+
+                        Nothing ->
+                            cmdnone model
+
                 LoadedUserPart (Ok key) ->
                     let
                         up =
@@ -535,19 +567,22 @@ view : Model -> List (Html Msg)
 view model =
     case model.user of
         UserLSuccess (Just user) ->
-            [ div []
-                [ text ("email: " ++ user.email) ]
-            , case model.viewState.loading of
-                Just ViewLLoading ->
-                    text "..."
+            [ div [ class "sidebar" ]
+                [ text ("email: " ++ user.email)
+                , div []
+                    [ case model.viewState.loading of
+                        Just ViewLLoading ->
+                            text "..."
 
-                Just ViewLError ->
-                    text "error. Could not sync"
+                        Just ViewLError ->
+                            text "error. Could not sync"
 
-                _ ->
-                    text "synchronized"
-            , viewAttributes user model.viewState
-            , div [] []
+                        _ ->
+                            text "synchronized"
+                    ]
+                , viewAttributes user model.viewState
+                ]
+            , div [ class "planner" ] [ text "days " ]
 
             -- , viewGoals user model.viewState
             -- , div [] []
@@ -598,105 +633,119 @@ viewResponseHttpError err =
 
 viewAttributes : User -> ViewState -> Html Msg
 viewAttributes user viewState =
-    div []
-        [ text "Attributes: "
-        , user.attributes
-            |> Array.indexedMap
-                (\index att -> lazy3 viewAttribute index att viewState)
-            |> Array.toList
-            |> ul []
-            -- |> lazy
-            |> List.singleton
-            |> div []
-
-        -- |> viewTextListToUl
-        ]
+    user.attributes
+        |> Array.indexedMap
+            (\index att -> lazy4 viewAttribute index att viewState.loading viewState.editing)
+        |> Array.toList
+        -- |> ul []
+        -- |> lazy
+        -- |> List.singleton
+        |> div [ class "attributes" ]
 
 
-viewAttribute : Int -> Attribute -> ViewState -> Html Msg
-viewAttribute index att viewState =
+viewAttribute : Int -> Attribute -> Maybe ViewLoadState -> Maybe ContentKey -> Html Msg
+viewAttribute index att loading editing =
     let
         patching =
-            viewState.loading /= Nothing
+            loading /= Nothing
 
         key =
             AttributeKey index att
     in
-    li []
-        [ div
-            [ onMouseOver <| HoverEvent key True
-            , onMouseOut <| HoverEvent key False
-            ]
-            [ let
-                attHtml =
-                    [ text att.short, text " - ", text att.name ]
-
-                ( editingThis, untouched ) =
-                    case viewState.editing of
-                        Just (AttributeKey index_ att_) ->
-                            if index == index_ && att == att_ then
-                                ( Just att_, True )
-
-                            else if index == index_ then
-                                ( Just att_, False )
-
-                            else
-                                ( Nothing, False )
-
-                        _ ->
-                            ( Nothing, False )
-              in
-              case editingThis of
-                Just att_ ->
-                    let
-                        ( nameinput, descinput ) =
-                            ( input
-                                [ onInput (EditingAttributePart (AName index))
-                                , value att_.name
-                                ]
-                                []
-                            , case att_.description of
-                                Just desc ->
-                                    input
-                                        [ onInput
-                                            (EditingAttributePart (ADescription index))
-                                        , value desc
-                                        ]
-                                        []
-
-                                Nothing ->
-                                    input
-                                        [ onInput
-                                            (EditingAttributePart (ADescription index))
-                                        ]
-                                        []
-                            )
-                    in
-                    div []
-                        [ --text "untouched editing"
-                          text att.short
-                        , nameinput
-                        , if untouched then
-                            text ""
-
-                          else
-                            button [ onClick (ClickDiscardEdit key) ] [ text "X" ]
-                        , button [ onClick <| ClickExpand key ] [ text "⇧" ]
-                        , div [] [ descinput ]
-                        ]
+    let
+        description =
+            case att.description of
+                Just desc ->
+                    text desc
 
                 Nothing ->
-                    if viewState.hovering == Just (AttributeKey index att) then
-                        div []
-                            (attHtml
-                                ++ [ button [ onClick <| ClickExpand key ] [ text "⇩" ]
-                                   ]
-                            )
+                    text ""
+
+        editingThis =
+            case editing of
+                Just (AttributeKey index_ att_) ->
+                    if index == index_ then
+                        Just att_
 
                     else
-                        div [] attHtml
-            ]
-        ]
+                        Nothing
+
+                _ ->
+                    Nothing
+    in
+    case editingThis of
+        Just att_ ->
+            let
+                shortinput =
+                    input
+                        [ onInput (EditingAttributePart (AShort index))
+                        , value att_.short
+                        , class "attribute-short"
+                        ]
+                        []
+
+                nameinput =
+                    input
+                        [ onInput (EditingAttributePart (AName index))
+                        , value att_.name
+                        , class "attribute-name"
+                        ]
+                        []
+
+                descinput =
+                    textarea
+                        [ onInput
+                            (EditingAttributePart (ADescription index))
+                        , class "attribute-desc"
+                        ]
+                        [ description ]
+
+                key_ =
+                    AttributeKey index att_
+            in
+            div
+                [ onMouseOver <| HoverEvent key True
+                , onMouseOut <| HoverEvent key False
+                , class "attribute editing"
+                ]
+                [ Html.form [ onSubmit (ClickExpand key) ]
+                    [ div [ class "attribute-editing-header" ]
+                        [ shortinput
+                        , nameinput
+
+                        -- , if untouched then
+                        --     {- untouched editing -}
+                        --     text ""
+                        --   else
+                        --     {- touched editing -}
+                        , div [ class "buttons editing" ]
+                            [ button [ type_ "button", onClick (ClickRemove key), class "fas fa-trash" ] []
+                            , button [ type_ "button", onClick (ClickDiscardEdit key), class "fas fa-times" ] []
+                            , button [ type_ "submit", class "fas fa-check" ] [] --text "⇧"
+                            ]
+                        ]
+                    ]
+                , descinput
+                ]
+
+        Nothing ->
+            div
+                [ onMouseOver <| HoverEvent key True
+                , onMouseOut <| HoverEvent key False
+                , class "attribute draggable"
+                , id <| "att-" ++ String.fromInt index
+                , draggable "true"
+                , attribute "ondragstart" "drag(event)"
+                ]
+                [ div [ class "attribute-header" ]
+                    [ div [ class "attribute-short-wrapper" ]
+                        [ h4 [ class "attribute-short" ] [ text att.short ] ]
+                    , h3 [ class "attribute-name", onClick (ClickExpand key) ] [ text att.name ]
+                    , div [ class "attribute-desc-wrapper" ]
+                        [ span [ class "attribute-desc" ] [ description ] ]
+                    ]
+                , div [ class "buttons" ] [ button [ class "fas fa-pen", onClick (ClickExpand key), tabindex 0 ] [] ]
+                ]
 
 
 viewGoals : User -> UserPatchState -> Html Msg
@@ -907,3 +956,14 @@ decodeGoalKey =
 toSession : Model -> Session
 toSession model =
     model.session
+
+
+port submitEditPort : (() -> msg) -> Sub msg
+
+
+port editingPort : () -> Cmd msg
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    submitEditPort (\_ -> CommitEdit)
