@@ -1,0 +1,1 @@
+./Mdb.sh && ./Flask.sh && ./Elm.sh
