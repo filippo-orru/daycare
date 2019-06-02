@@ -3,19 +3,19 @@
 
 <head>
 	<meta charset="UTF-8">
-	<title>Main</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<title>daycare</title>
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.css">
-	<link rel="stylesheet" href="main.css">
+	<link rel="stylesheet" href="style.css">
 	<script src="main.js"></script>
 	<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css"
 		integrity="sha384-oS3vJWv+0UjzBfQzYUhtDYW+Pj2yciDJxpsK1OYPAYjqT085Qq/1cq5FLXAZQ7Ay" crossorigin="anonymous">
-	<link href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,900&display=swap" rel="stylesheet">
 </head>
 
 <body>
 	<script>
-		var app = Elm.Main.init();
-
 		function dragover(ev) {
 			ev.preventDefault();
 		}
@@ -35,6 +35,8 @@
 			}
 		}
 
+		var app = Elm.Main.init();
+
 		app.ports.editingPort.subscribe(function () {
 			// alert("start editing")
 			requestAnimationFrame(() => {
@@ -46,6 +48,23 @@
 				}
 			});
 		});
+
+		app.ports.saveToStorage.subscribe(function (token) {
+			localStorage.setItem('daycare-token', JSON.stringify(token));
+		});
+
+		function loadFromStorage() {
+			let token = JSON.parse(localStorage.getItem('daycare-token'));
+			if (token !== null && token !== "") {
+				return token
+			} else {
+				return null;
+			}
+		}
+
+		app.ports.loadFromStorage.send(loadFromStorage());
+
+		// function saveToStorage(key, value)
 	</script>
 </body>
 

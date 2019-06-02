@@ -14,8 +14,9 @@ body {
     background-color: hsl(0, 0%, 100%);
 }
 
-body,
-input {
+* {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-family: "Open Sans";
 }
 
@@ -262,4 +263,72 @@ hr {
 
 li {
     display: block;
+}
+
+
+/*========   LOGIN   ========*/
+
+div.login.container {
+    background-color: hsl(192, 35%, 91%);
+    display: flex;
+    flex-flow: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+
+form.login.form {
+    background-color: hsl(0, 0%, 100%);
+    display: inline-grid;
+    /* justify-content: center; */
+    /* height: 150px; */
+    width: 200px;
+    max-height: 400px;
+    padding: 2em;
+    border-radius: 16px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+}
+
+input.login {
+    margin: 0 0 1em 0;
+    padding: 0.5em;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    /* box-shadow: inset 0 2px 2px rgba(0, 0, 0, 0.3); */
+}
+
+button.login.submit {
+    padding: 0.75em;
+    border-radius: 4px;
+    border: none;
+    background-color: hsl(191, 99%, 41%);
+    color: hsl(180, 100%, 97%);
+    font-weight: bold;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, color 0.15s;
+}
+
+button.login.submit:hover {
+    transform: translate(0,-1px);
+    color: white;
+    transition: transform 0.15s, box-shadow 0.15s, color 0.15s;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+div.login.appendix {
+    font-style: italic;
+    font-size: 14px;
+    color: rgba(0, 0, 0, 0.7);
+    
+    padding: 0.5em;
+}
+
+h3.login.header {
+    display: none;
+    margin-top: 0;
+    letter-spacing: 3px;
+    font-style: bold;
 }

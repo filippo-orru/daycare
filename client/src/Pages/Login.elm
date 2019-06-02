@@ -1,8 +1,8 @@
-module Pages.Login exposing (LoadState(..), Model, Msg(..), decodeUserLogin, encodeUserLogin, init, login, update, view, viewLoginForm)
+port module Pages.Login exposing (LoadState(..), Model, Msg(..), decodeUserLogin, encodeUserLogin, init, login, update, view, viewLoginForm)
 
 import Html exposing (..)
-import Html.Attributes exposing (placeholder, value)
-import Html.Events exposing (onClick, onInput)
+import Html.Attributes exposing (..)
+import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode as D
 import Json.Encode as E
@@ -17,8 +17,8 @@ import Session exposing (Session)
 init : Session -> ( Model, Cmd Msg )
 init session =
     ( { session = session
-      , username = "fefe"
-      , password = "123456"
+      , username = ""
+      , password = ""
       , state = LoginStateIdle
       }
     , Cmd.none
@@ -36,7 +36,7 @@ type alias Model =
 type LoadState
     = LoginStateIdle
     | LoginStateWait
-    | LoginStateError (Maybe Http.Error)
+    | LoginStateError Http.Error
     | LoginStateSuccess String
 
 
@@ -55,26 +55,31 @@ view model =
                 LoginStateSuccess _ ->
                     text "Success!"
 
-                _ ->
+                LoginStateError Http.NetworkError ->
+                    text "Cannot reach Server. Please retry."
+
+                LoginStateError _ ->
+                    text "An error occurred. Please retry."
+
+                LoginStateIdle ->
                     text ""
     in
-    viewLoginForm model append
+    [ div [ class "login container" ] [ viewLoginForm model append ] ]
 
 
-viewLoginForm : Model -> Html Msg -> List (Html Msg)
+viewLoginForm : Model -> Html Msg -> Html Msg
 viewLoginForm model appendix =
-    [ div []
-        [ text "Username:"
-        , input [ placeholder "username", value model.username, onInput UpdateUsername ] []
+    Html.form [ class "login form", onSubmit UserLoginLoad ]
+        [ h3 [ class "login header" ] [ text "LOGIN" ]
+
+        -- , label [ class "login username" ] [ text "Username:" ]
+        , input [ class "login username", placeholder "username", value model.username, onInput UpdateUsername ] []
+
+        -- , label [ class "login password" ] [ text "Password:" ]
+        , input [ class "login password", placeholder "password", value model.password, onInput UpdatePassword ] []
+        , button [ class "login submit", type_ "submit" ] [ text "Login" ]
+        , div [ class "login appendix" ] [ appendix ]
         ]
-    , div []
-        [ text "Password:"
-        , input [ placeholder "Password", value model.password, onInput UpdatePassword ] []
-        ]
-    , div []
-        [ button [ onClick UserLoginLoad ] [ text "Login" ] ]
-    , div [] [ appendix ]
-    ]
 
 
 
@@ -87,6 +92,7 @@ type Msg
     | UpdateUsername String
     | UpdatePassword String
     | LoadPlanner
+    | LoadedToken String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -103,7 +109,7 @@ update msg model =
             ( { model | session = Session.fromString key (Just token) }, Route.replaceUrl key Route.App )
 
         ( UserLoginLoaded (Err message), _ ) ->
-            ( { model | state = LoginStateError <| Just message }, Cmd.none )
+            ( { model | state = LoginStateError message }, Cmd.none )
 
         ( UpdateUsername u, _ ) ->
             ( { model | username = u }, Cmd.none )
@@ -143,3 +149,15 @@ encodeUserLogin model =
 decodeUserLogin : D.Decoder String
 decodeUserLogin =
     D.field "token" D.string
+
+
+
+{- PORTS -}
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    loadedToken LoadedToken
+
+
+port loadedToken : (String -> msg) -> Sub msg
