@@ -1,11 +1,11 @@
 start "" "C:\Users\fefe\AppData\Local\Programs\Microsoft VS Code\Code.exe"
 REM start "" "C:\Users\fefe\AppData\Local\Postman\Update.exe" --processStart "Postman.exe"
-start "" "W:\Filippo\Development\_Git\daycare\runFlask.bat"
-REM start "" "vscode://file/W:/Filippo/Development/_Git/daycare/"
-REM start "" "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" "http://127.0.0.1:8000/daycare.elm"
+W:
+cd "W:\Filippo\Development\_Git\daycare\run"
+start "" "Flask.bat"
+start "" "Mdb.bat"
+start "" "Elm.bat"
 
-start "" "W:\Filippo\Development\_Git\daycare\runMdb.bat"
-start "" "W:\Filippo\Development\_Git\daycare\runElm.bat"
 timeout 1
 REM start "" "C:\Users\fefe\AppData\Local\MongoDBCompassCommunity\MongoDBCompassCommunity.exe"
 start "" "https://web.whatsapp.com/"

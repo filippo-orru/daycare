@@ -109,6 +109,7 @@ databaseConfig.ini
 \.vscode/
 */crap/
 */node_modules/
+node_modules/
 bak/
 database/
 exampleuser.json
