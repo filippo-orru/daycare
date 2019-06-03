@@ -17,7 +17,7 @@ body {
 * {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-family: "Open Sans";
+    font-family: 'Open Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 /* input {
@@ -282,7 +282,7 @@ form.login.form {
     display: inline-grid;
     /* justify-content: center; */
     /* height: 150px; */
-    width: 200px;
+    width: 280px;
     max-height: 400px;
     padding: 2em;
     border-radius: 16px;
@@ -291,20 +291,27 @@ form.login.form {
 
 input.login {
     margin: 0 0 1em 0;
-    padding: 0.5em;
+    padding: 0.75em;
     border-radius: 4px;
     border: 1px solid rgba(0, 0, 0, 0.3);
+    outline:none;
+    color: hsl(191, 97%, 15%);
     /* box-shadow: inset 0 2px 2px rgba(0, 0, 0, 0.3); */
+}
+
+input.login:focus {
+    border: 1px solid hsla(191, 99%, 41%, 0.932);
 }
 
 button.login.submit {
     padding: 0.75em;
-    border-radius: 4px;
     border: none;
+    border-radius: 6px;
+    outline: none;
     background-color: hsl(191, 99%, 41%);
     color: hsl(180, 100%, 97%);
-    font-weight: bold;
-    letter-spacing: 3px;
+    font-weight: 600;
+    letter-spacing: 2px;
     text-transform: uppercase;
     box-shadow: 0 2px 3px rgba(0, 0, 0, 0.4);
     cursor: pointer;
@@ -315,7 +322,14 @@ button.login.submit:hover {
     transform: translate(0,-1px);
     color: white;
     transition: transform 0.15s, box-shadow 0.15s, color 0.15s;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+}
+
+button.login.submit:active {
+    background-color: hsl(197, 88%, 41%);
+    transform: translate(0, 1px);
+    transition: transform 0.1s, box-shadow 0.1s, color 0.15s;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 div.login.appendix {
@@ -327,8 +341,12 @@ div.login.appendix {
 }
 
 h3.login.header {
-    display: none;
+    /* display: none; */
     margin-top: 0;
-    letter-spacing: 3px;
-    font-style: bold;
+    margin-bottom: 0.75em;
+    letter-spacing: 1px;
+    font-size: 24px;
+    font-weight: 700;
+    text-align: center;
+    color: hsl(191, 97%, 15%);
 }

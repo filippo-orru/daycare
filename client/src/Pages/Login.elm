@@ -1,4 +1,4 @@
-port module Pages.Login exposing (LoadState(..), Model, Msg(..), decodeUserLogin, encodeUserLogin, init, login, update, view, viewLoginForm)
+port module Pages.Login exposing (LoadState(..), Model, Msg(..), decodeUserLogin, encodeUserLogin, init, login, subscriptions, update, view, viewLoginForm)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -73,7 +73,7 @@ viewLoginForm model appendix =
         [ h3 [ class "login header" ] [ text "LOGIN" ]
 
         -- , label [ class "login username" ] [ text "Username:" ]
-        , input [ class "login username", placeholder "username", value model.username, onInput UpdateUsername ] []
+        , input [ class "login username", placeholder "username", value model.username, onInput UpdateUsername, autofocus True, autocomplete True ] []
 
         -- , label [ class "login password" ] [ text "Password:" ]
         , input [ class "login password", placeholder "password", value model.password, onInput UpdatePassword ] []

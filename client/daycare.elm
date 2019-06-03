@@ -31,7 +31,7 @@ subscriptions model =
             Sub.map GotPlannerMsg (Planner.subscriptions planner)
 
         Login login ->
-            Sub.map GotLoginMsg (Planner.subscriptions login)
+            Sub.map GotLoginMsg (Login.subscriptions login)
 
         _ ->
             Sub.none
