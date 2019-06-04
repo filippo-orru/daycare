@@ -16,6 +16,17 @@
 
 <body>
 	<script>
+
+		function loadFromStorage() {
+			let token = JSON.parse(localStorage.getItem('daycare-token'));
+			if (token !== null && token !== "") {
+				return token
+			} else {
+				return "";
+			}
+		}
+
+
 		function dragover(ev) {
 			ev.preventDefault();
 		}
@@ -49,20 +60,15 @@
 			});
 		});
 
-		app.ports.saveToStorage.subscribe(function (token) {
+		app.ports.saveTokenLogin.subscribe(function (token) {
+			localStorage.setItem('daycare-token', JSON.stringify(token));
+		});
+		app.ports.saveTokenPlanner.subscribe(function (token) {
 			localStorage.setItem('daycare-token', JSON.stringify(token));
 		});
 
-		function loadFromStorage() {
-			let token = JSON.parse(localStorage.getItem('daycare-token'));
-			if (token !== null && token !== "") {
-				return token
-			} else {
-				return null;
-			}
-		}
-
-		app.ports.loadFromStorage.send(loadFromStorage());
+		app.ports.loadedTokenLogin.send(loadFromStorage());
+		app.ports.loadedTokenPlanner.send(loadFromStorage());
 
 		// function saveToStorage(key, value)
 	</script>

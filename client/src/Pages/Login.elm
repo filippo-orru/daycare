@@ -91,37 +91,40 @@ type Msg
     | UserLoginLoaded (Result Http.Error String)
     | UpdateUsername String
     | UpdatePassword String
-    | LoadPlanner
-    | LoadedToken String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case ( msg, model ) of
-        ( UserLoginLoad, _ ) ->
+    case msg of
+        UserLoginLoad ->
             ( { model | state = LoginStateWait }, login model )
 
-        ( UserLoginLoaded (Ok token), _ ) ->
+        UserLoginLoaded (Ok token) ->
             let
                 key =
                     Session.navKey model.session
             in
-            ( { model | session = Session.fromString key (Just token) }, Route.replaceUrl key Route.App )
+            if token /= "" then
+                ( { model | session = Session.fromString key (Just token) }
+                , Cmd.batch [ saveTokenLogin token, Route.replaceUrl key Route.App ]
+                )
 
-        ( UserLoginLoaded (Err message), _ ) ->
+            else
+                ( model, Cmd.none )
+
+        UserLoginLoaded (Err message) ->
             ( { model | state = LoginStateError message }, Cmd.none )
 
-        ( UpdateUsername u, _ ) ->
+        UpdateUsername u ->
             ( { model | username = u }, Cmd.none )
 
-        ( UpdatePassword p, _ ) ->
+        UpdatePassword p ->
             ( { model | password = p }, Cmd.none )
 
-        ( _, _ ) ->
-            ( model, Cmd.none )
 
 
-
+-- _ ->
+--     ( model, Cmd.none )
 --HTTP
 
 
@@ -157,7 +160,10 @@ decodeUserLogin =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    loadedToken LoadedToken
+    loadedTokenLogin (\t -> UserLoginLoaded <| Ok t)
 
 
-port loadedToken : (String -> msg) -> Sub msg
+port loadedTokenLogin : (String -> msg) -> Sub msg
+
+
+port saveTokenLogin : String -> Cmd msg

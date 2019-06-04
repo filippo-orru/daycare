@@ -80,7 +80,7 @@ view model =
             viewSimplePage "Error" <| "An error occurred.  Model:   " ++ Debug.toString error
 
         Redirect _ ->
-            viewSimplePage "Redirecting" <| "Redirecting..."
+            viewSimplePage "Redirecting" "Redirecting..."
 
         NotFound _ ->
             viewSimplePage "404 - Not Found" "Could not find page. Navigate back home"

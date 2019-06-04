@@ -30,8 +30,8 @@ type alias Model =
 type UserLoadState
     = UserLIdle
     | UserLWait
-    | UserLError (Maybe Http.Error)
-    | UserLSuccess (Maybe User)
+    | UserLError Http.Error
+    | UserLSuccess User
 
 
 type alias UserPatchState =
@@ -154,7 +154,8 @@ init session =
 
 
 type Msg
-    = UserLoginLoadedLoadUserContent (Result Http.Error String)
+    = LoadedToken String
+    | UserLoginLoadedLoadUserContent (Result Http.Error String)
     | LoadUserContent
     | LoadedUserContent (Result Http.Error User)
     | UpdateAttributePart AttributeKey String
@@ -196,15 +197,15 @@ update msg model =
                     ( { model | user = UserLWait }, loadUser token )
 
                 LoadedUserContent (Ok content) ->
-                    ( { model | user = UserLSuccess (Just content) }, Cmd.none )
+                    ( { model | user = UserLSuccess content }, Cmd.none )
 
                 LoadedUserContent (Err message) ->
-                    ( { model | user = UserLError <| Just message }, Cmd.none )
+                    ( { model | user = UserLError message }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
 
-        ( Just token, Just (Just user) ) ->
+        ( Just token, Just user ) ->
             let
                 cmdnone a =
                     ( a, Cmd.none )
@@ -304,7 +305,7 @@ update msg model =
                         Just (AttributeKey index_ att_) ->
                             let
                                 userNewAttributes =
-                                    Just { user | attributes = Array.set index_ att_ user.attributes }
+                                    { user | attributes = Array.set index_ att_ user.attributes }
                             in
                             if index == index_ && att == att_ then
                                 {- dont update but retract -}
@@ -321,7 +322,7 @@ update msg model =
                         Just (GoalKey index_ goal_) ->
                             let
                                 newGoals =
-                                    Just { user | goals = Array.set index_ goal_ user.goals }
+                                    { user | goals = Array.set index_ goal_ user.goals }
                             in
                             {- update goal and expand -}
                             ( { model | user = UserLSuccess newGoals, viewState = vsKeyLoad }, Cmd.batch [ updateGoals token goal_, editingPort () ] )
@@ -341,7 +342,7 @@ update msg model =
                         Just (AttributeKey index att) ->
                             let
                                 userNewAttributes =
-                                    Just { user | attributes = Array.set index att user.attributes }
+                                    { user | attributes = Array.set index att user.attributes }
                             in
                             ( { model_ | user = UserLSuccess userNewAttributes }, updateAttributes token att )
 
@@ -374,14 +375,34 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        ( _, _ ) ->
-            ( model, Cmd.none )
+        ( Nothing, _ ) ->
+            case msg of
+                LoadedToken token ->
+                    let
+                        key =
+                            Session.navKey model.session
+                    in
+                    if token /= "" then
+                        ( { model | session = Session.fromString key (Just token) }
+                        , Cmd.batch [ saveTokenPlanner token, Route.replaceUrl key Route.App ]
+                        )
+
+                    else
+                        ( model, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
+
+
+-- ( _, _ ) ->
+--     ( model, Cmd.none )
 
 
 updateAttributePart : Model -> Int -> AttributeKey -> String -> ( Model, Cmd Msg )
 updateAttributePart model index attKey value =
     case model.user of
-        UserLSuccess (Just content) ->
+        UserLSuccess content ->
             let
                 eCont =
                     case Array.get index content.attributes of
@@ -416,10 +437,10 @@ updateAttributePart model index attKey value =
                     )
                         model.viewState
             in
-            ( { model | user = UserLSuccess (Just eCont), viewState = up }, Cmd.none )
+            ( { model | user = UserLSuccess eCont, viewState = up }, Cmd.none )
 
         _ ->
-            ( { model | user = UserLError <| Just Http.NetworkError }, Cmd.none )
+            ( { model | user = UserLError Http.NetworkError }, Cmd.none )
 
 
 updateAttributeSend : Model -> String -> Int -> ( Model, Cmd Msg )
@@ -429,7 +450,7 @@ updateAttributeSend model token index =
             (\vs -> { vs | loading = Nothing }) model.viewState
     in
     case model.user of
-        UserLSuccess (Just content) ->
+        UserLSuccess content ->
             let
                 att =
                     Array.get index content.attributes
@@ -453,7 +474,7 @@ updateAttribute user index att =
 updateGoalPart : Model -> Int -> String -> GoalKey -> ( Model, Cmd Msg )
 updateGoalPart model index value goalPart =
     case model.user of
-        UserLSuccess (Just content) ->
+        UserLSuccess content ->
             let
                 maybegoal =
                     Array.get index content.goals
@@ -488,10 +509,10 @@ updateGoalPart model index value goalPart =
                     )
                         model.viewState
             in
-            ( { model | user = UserLSuccess (Just eCont), viewState = up }, Cmd.none )
+            ( { model | user = UserLSuccess eCont, viewState = up }, Cmd.none )
 
         _ ->
-            ( { model | user = UserLError <| Just Http.NetworkError }, Cmd.none )
+            ( { model | user = UserLError Http.NetworkError }, Cmd.none )
 
 
 updateGoalSend : Model -> String -> Int -> ( Model, Cmd Msg )
@@ -501,7 +522,7 @@ updateGoalSend model token index =
             { model | viewState = (\vs -> { vs | loading = Nothing }) model.viewState }
     in
     case model.user of
-        UserLSuccess (Just content) ->
+        UserLSuccess content ->
             let
                 att =
                     Array.get index content.goals
@@ -566,7 +587,7 @@ updateGoals token goal =
 view : Model -> List (Html Msg)
 view model =
     case model.user of
-        UserLSuccess (Just user) ->
+        UserLSuccess user ->
             [ div [ class "sidebar" ]
                 [ text ("email: " ++ user.email)
                 , div []
@@ -980,6 +1001,15 @@ port submitEditPort : (() -> msg) -> Sub msg
 port editingPort : () -> Cmd msg
 
 
+port loadedTokenPlanner : (String -> msg) -> Sub msg
+
+
+port saveTokenPlanner : String -> Cmd msg
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    submitEditPort (\_ -> CommitEdit)
+    Sub.batch
+        [ submitEditPort (\_ -> CommitEdit)
+        , loadedTokenPlanner LoadedToken
+        ]
