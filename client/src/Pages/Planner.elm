@@ -14,7 +14,6 @@ import Route
 import Session exposing (Session)
 
 
-
 type alias Model =
     { session : Session
     , user : UserLoadState
@@ -590,46 +589,62 @@ view model =
             -- , viewDays model.dayLoadState model.userPatchState
             ]
 
-        UserLError error ->
-            [ div [] (viewResponseHttpError error) ]
-
         UserLWait ->
-            [ text "Loading content..." ]
+            [ div [ class "planner container" ]
+                [ div [ class "planner box" ]
+                    [ p [ class "planner loading-text" ] [ text "Loading content..." ] ]
+                ]
+            ]
+
+        UserLError error ->
+            [ div [ class "planner container" ]
+                [ div [ class "planner box" ]
+                    [ p [ class "planner error-text" ]
+                        [ text <| "Error (" ++ viewResponseHttpError error ++ ")" ]
+                    , a [ class "planner link-button", Route.href Route.App ]
+                        [ i [ class "planner fas fa-sync-alt" ] [], text "Refresh" ]
+                    ]
+                ]
+            ]
 
         UserLIdle ->
-            [ text "You have to be logged in to view this page.", div [] [ a [ Route.href Route.Login ] [ text "Login" ] ] ]
+            [ div [ class "planner container" ]
+                [ div [ class "planner error-container" ]
+                    [ p [ class "planner error-text" ] [ text "You have to be logged in to view this page." ]
+                    , a [ class "planner link-button", Route.href Route.Login ] [ text "Login" ]
+                    ]
+                ]
+            ]
 
-        _ ->
-            [ div [] [ text "An unknown Error occurred" ] ]
 
 
-viewResponseHttpError : Maybe Http.Error -> List (Html Msg)
+-- _ ->
+--     [ div [ class "planner error-container" ]
+--         [ text "An unknown Error occurred" ]
+--     ]
+
+
+viewResponseHttpError : Http.Error -> String
 viewResponseHttpError err =
-    [ case err of
-        Just error ->
-            case error of
-                Http.BadStatus code ->
-                    -- text ("Could not get token. Status " ++ String.fromInt code)
-                    text
-                        ("Could not get token."
-                            ++ (case code of
-                                    401 ->
-                                        "Wrong Username or Password."
+    case err of
+        -- IMPLEMENT : MAYBE HTTP ERROR -> HTTP ERROR
+        Http.BadStatus code ->
+            -- text ("Could not get token. Status " ++ String.fromInt code)
+            case code of
+                401 ->
+                    "Wrong Username or Password"
 
-                                    500 ->
-                                        "Server Error."
-
-                                    _ ->
-                                        "Status: " ++ String.fromInt code
-                               )
-                        )
+                500 ->
+                    "Server Error"
 
                 _ ->
-                    text ("Could not get token. Error occured. :: " ++ Debug.toString error)
+                    "Status " ++ String.fromInt code
 
-        Nothing ->
-            text "a nondescript error occured"
-    ]
+        Http.NetworkError ->
+            "Could not connect to server"
+
+        _ ->
+            Debug.toString err
 
 
 viewAttributes : User -> ViewState -> Html Msg
