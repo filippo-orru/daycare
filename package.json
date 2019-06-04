@@ -13,6 +13,7 @@
   },
   "license": "GNUv3",
   "devDependencies": {
-    "light-server": "^2.6.2"
+    "light-server": "^2.6.2",
+    "node-sass": "^4.12.0"
   }
 }
