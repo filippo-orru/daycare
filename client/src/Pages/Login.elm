@@ -50,16 +50,19 @@ view model =
         append =
             case model.state of
                 LoginStateWait ->
-                    text "..."
+                    span [ class "login wait-text" ] [ text "..." ]
 
                 LoginStateSuccess _ ->
-                    text "Success!"
+                    span [ class "login success-text" ] [ text "Success!" ]
 
                 LoginStateError Http.NetworkError ->
-                    text "Cannot reach Server. Please retry."
+                    span [ class "login error-text" ] [ text "Cannot reach Server" ]
+
+                LoginStateError (Http.BadStatus 401) ->
+                    span [ class "login error-text" ] [ text "Wrong username or password" ]
 
                 LoginStateError _ ->
-                    text "An error occurred. Please retry."
+                    span [ class "login error-text" ] [ text "An error occurred. Please retry." ]
 
                 LoginStateIdle ->
                     text ""
