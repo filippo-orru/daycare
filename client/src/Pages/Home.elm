@@ -1,6 +1,7 @@
 module Pages.Home exposing (Model, Msg(..), init, view)
 
 import Html exposing (..)
+import Html.Attributes exposing (..)
 import Route
 import Session exposing (Session)
 
@@ -20,7 +21,14 @@ type Msg
 
 view : Model -> List (Html Msg)
 view model =
-    [ text "home"
-    , div [] []
-    , a [ Route.href Route.App ] [ text "Planner" ]
+    [ div [ class "home header" ]
+        [ div [ class "home header-header-container" ]
+            [ h1 [ class "home header-header" ] [ text "daycare" ] ]
+        ]
+    , div [ class "home body" ]
+        [ div [ class "home hero hero-main" ]
+            [ h3 [ class "home hero-main-text" ] [ text "hero" ] ]
+        ]
+
+    -- , a [ Route.href Route.App ] [ text "Planner" ]
     ]

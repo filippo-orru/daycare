@@ -412,3 +412,34 @@ h3.login.header {
     text-align: center;
     color: hsl(191, 97%, 15%);
 }
+
+/*========   HOME   ========*/
+
+div.home.header {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    width: 100%;
+    top: 0;
+    height: 100px;
+    box-shadow: 0 3px 4px rgba(0, 0, 0, 0.46);
+    padding: 8px 16px;
+    color: hsl(190, 58%, 65%);
+    background-color: hsl(202, 33%, 95%);
+    /* margin-bottom: 16px; */
+    /* border-bottom: 1px solid rgba(0, 0, 0, 0.25); */
+}
+
+div.home.body {
+    padding-top: 128px;
+    background-color: hsl(178, 57%, 91%);
+    /* height: 100vh - 128px; */
+    height: 700px;
+}
+
+div.home.hero {
+    background-color: hotpink;
+    padding: 1em;
+    transform: rotate(-5deg);
+    overflow: hidden;
+}
