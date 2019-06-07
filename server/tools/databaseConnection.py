@@ -14,7 +14,7 @@ class DatabaseConnection():
         path = actions.modPath('databaseConfig.ini')
 
         if not actions.fileExists(path, False):
-            raise FileNotFoundError('Could not find databaseConnection.ini')
+            raise FileNotFoundError('Could not find databaseConfig.ini')
         config = parseConfig.parse(path)
 
         if config['general']['uselocal'] == 'True':
@@ -23,7 +23,7 @@ class DatabaseConnection():
             part = 'mlab'
         print('DEBUG: Creating new connection to database')
         self._client = MongoClient(config[part]['clientUrl'])
-        self._db = self._client.get_database()
+        self._db = self._client.get_database('daycare')
 
     # def __enter__(self):
     #     return self

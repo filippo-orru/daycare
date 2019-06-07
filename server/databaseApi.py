@@ -78,7 +78,7 @@ def addUser(email, pwd, uname=''):
     if list(db.find('users', {'email': email})):
         raise ValueError('Email already exists')
 
-    if list(db.find('users', {'username': uname})):
+    if uname != "" and list(db.find('users', {'username': uname})):
         raise ValueError('Username already exists')
 
     pwd = argon2.hash(pwd)

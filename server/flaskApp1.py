@@ -8,10 +8,9 @@ import databaseApi as dba
 import flask_helper as fh
 import math
 
-app = Flask(
-    __name__,
-    template_folder="frontend/templates",
-    static_folder="frontend/static")
+app = Flask(__name__,
+            template_folder="frontend/templates",
+            static_folder="frontend/static")
 CORS(app)
 
 apipath = '/api/v3'
@@ -22,14 +21,14 @@ itemMethods = ['GET', 'PATCH', 'DELETE']
 
 @app.route('/')
 def index():
-    return 'No page'
+    return 'daycare api'
 
 
 @app.route(apipath + '/login', methods=['POST'])
 def login():
     try:
         key = 'username'
-        req = request.get_json()
+        # request = request.get_json()
         critical = [(key, str), ('password', str)]
         value, password = fh.assertRequest(request, critical)
     except KeyError:
@@ -58,7 +57,7 @@ def users():
     try:
         email, password, username = fh.assertRequest(request, critical,
                                                      optional)
-    except KeyError:
+    except (KeyError, TypeError):
         return hRes.BadRequest()
 
     try:
@@ -183,8 +182,8 @@ def day(uID, date):
 
     elif request.method == 'PATCH':
         try:
-            validBody = fh.assertRequest(
-                request, schema=fh.getSchema.dayPatch())
+            validBody = fh.assertRequest(request,
+                                         schema=fh.getSchema.dayPatch())
         except KeyError:
             return hRes.BadRequest()
 
@@ -258,8 +257,8 @@ def settings(uID):
 
     elif request.method == 'PATCH':
         try:
-            validBody = fh.assertRequest(
-                request, schema=fh.getSchema.settings())
+            validBody = fh.assertRequest(request,
+                                         schema=fh.getSchema.settings())
         except KeyError:
             return hRes.BadRequest()
 
@@ -277,4 +276,4 @@ def settings(uID):
 
 
 if __name__ == "__main__":
-    app.run('localhost', '5000', debug=False)
+    app.run('0.0.0.0', '5000', False)
