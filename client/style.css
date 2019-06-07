@@ -1,30 +1,46 @@
-.day {
-    width: 82%;
-    padding: 23px;
-    margin: 0px auto 0px auto;
-    display: block;
-    background: #FFFFFF;
-    color: #000000;
-    border-radius: 12px;
-    box-shadow: 2px 2px 16px -1px rgba(0, 0, 0, 0.3);
-    -webkit-box-shadow: 2px 2px 16px -1px rgba(0, 0, 0, 0.3);
-}
-
-body {
-    background-color: hsl(0, 0%, 100%);
-}
-
 * {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-family: 'Open Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* input {
-    font-family: "Open Sans";
-} */
 
-button.fas {
+/* PLANNER Sidebar */
+
+
+div.planner.sidebar {
+    width: 504px;
+    height: 100vh;
+    box-sizing: border-box;
+    padding: 1em;
+    /* min-width: 25em; */
+    display: inline-block;
+    padding: 1em;
+    background-color: hsl(198, 49.5%, 96%);
+    /* position: fixed; */
+    transition: left 0.3s;
+    box-sizing: border-box;
+    /* margin-right: 1em; */
+}
+
+div.planner.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1em;
+}
+
+h2.planner.sidebar-header-text {
+    justify-self: center;
+    margin-left: auto;
+}
+
+div.planner.sync-indicator {
+    margin-left: auto;
+    display: inline-block;
+}
+
+button.planner.fas {
     padding: 4px;
     color: rgba(0, 0, 0, 0.25);
     transition: color 0.2s;
@@ -38,40 +54,40 @@ button.fas {
     outline: none;
 }
 
-button.fas.fa-check {
+button.planner.fas.fa-check {
     color: hsl(191, 50.8%, 40%);
 }
 
-button.fas:hover {
+button.planner.fas:hover {
     color: rgba(0, 0, 0, 0.9);
     transition: color 0.1s;
 }
 
-div.attribute:hover button.fas.fa-pen {
+div.planner.attribute:hover button.fas.fa-pen {
     color: black;
     transition: color 0.2s;
 }
 
 button.fas.fa-pen:hover,
-button.fas.fa-check:hover {
+button.planner.fas.fa-check:hover {
     color: hsl(191, 80.8%, 55%) !important;
     transition: color 0.2s;
 }
 
-button.fas.fa-times:hover {
+button.planner.fas.fa-times:hover {
     color: hsl(0, 50.8%, 52%) !important;
     transition: color 0.2s;
 }
 
-button.fas.fa-trash {
+button.planner.fas.fa-trash {
     font-size: 15px;
 }
 
-/*button.fas.fa-pen {
+/*bplanner.utton.fas.fa-pen {
 	float: right;
 }*/
 
-div.buttons {
+div.planner.buttons {
     margin-left: auto;
     display: inline-flex;
     align-items: center;
@@ -82,27 +98,13 @@ div.buttons {
     cursor: grab;
 }
 
-div.buttons.editing {
+div.planner.buttons.editing {
     cursor: default;
     flex-flow: row;
 }
 
-div.sidebar {
-    width: 22em;
-    height: 100vh;
-    box-sizing: padding-box;
-    padding: 1em;
-    min-width: 25em;
-    display: inline-block;
-    padding: 1em;
-    background-color: hsl(0, 0%, 96%);
-}
 
-div.planner {
-    display: inline-block;
-}
-
-div.attribute {
+div.planner.attribute {
     margin: 1em 1em 2em 1em;
     border-radius: 0.8em;
     overflow: hidden;
@@ -121,25 +123,25 @@ div.attribute {
     align-items: center;
 }
 
-div.attribute-header {
+div.planner.attribute-header {
     display: flex;
     align-items: center;
 }
 
-div.attribute:hover {
+div.planner.attribute:hover {
     -webkit-box-shadow: 0 0 7px 1px rgba(0, 0, 0, 0.46);
     -moz-box-shadow: 0 0 7px 1px rgba(0, 0, 0, 0.46);
     box-shadow: 0px 8px 13px 1px rgba(0, 0, 0, 0.23);
     transition: box-shadow 0.15s;
 }
 
-div.attribute.editing {
+div.planner.attribute.editing {
     /*padding: 1em 0.4em 1em 0.4em;*/
     cursor: auto;
     display: block;
 }
 
-div.attribute-short-wrapper {
+div.planner.attribute-short-wrapper {
     border: hsl(0, 0%, 0%) solid 1px;
     border-radius: 50%;
     padding: 0;
@@ -150,7 +152,7 @@ div.attribute-short-wrapper {
     margin-right: 0.5em;
 }
 
-h4.attribute-short {
+h4.planner.attribute-short {
     margin: auto;
     display: inline-block;
     box-sizing: content-box;
@@ -159,14 +161,14 @@ h4.attribute-short {
     font-family: monospace;
 }
 
-h3.attribute-name {
+h3.planner.attribute-name {
     margin: auto 0.5em auto 0;
     display: inline-block;
     line-height: 1em;
     font-size: 16px;
 }
 
-h3.attribute-name:hover {
+h3.planner.attribute-name:hover {
     /*border-bottom: 0.1em solid black;*/
     /*   box-shadow: inset 0 -1px 0 white, inset 0 -2.1px 0 rgba(0,0,0,0.8);
 	text-decoration-skip-ink: auto; */
@@ -177,7 +179,7 @@ h3.attribute-name:hover {
 }
 
 input.attribute-name,
-input.attribute-short {
+input.planner.attribute-short {
     border: none;
     width: 8em;
     border-bottom: 1.5px solid rgba(0, 0, 0, 0.4);
@@ -191,19 +193,19 @@ input.attribute-short {
     outline: none;
 }
 
-input.attribute-short {
+input.planner.attribute-short {
     max-width: 1.4em;
     margin-right: 8px;
 }
 
 input.attribute-name:focus,
-input.attribute-short:focus {
+input.planner.attribute-short:focus {
     border-bottom: 1.5px solid rgba(0, 0, 0, 0.7);
     outline-style: none;
     transition: border 0.2s;
 }
 
-textarea.attribute-desc {
+textarea.planner.attribute-desc {
     border: 1.5px solid rgba(0, 0, 0, 0.4);
     border-radius: 6px;
     margin-top: 0em;
@@ -219,24 +221,24 @@ textarea.attribute-desc {
     transition: border 0.2s;
 }
 
-textarea.attribute-desc:focus {
+textarea.planner.attribute-desc:focus {
     border-color: rgba(0, 0, 0, 0.7);
     transition: border 0.2s;
 }
 
-div.attribute-editing-header {
+div.planner.attribute-editing-header {
     margin-bottom: 16px;
     display: flex;
     align-items: center;
     cursor: default;
 }
 
-div.attribute-desc-wrapper {
+div.planner.attribute-desc-wrapper {
     display: inline-block;
     padding: 0;
 }
 
-span.attribute-desc {
+span.planner.attribute-desc {
     font-style: italic;
     color: rgba(0, 0, 0, 0.5);
     transition: color 0.2s;
@@ -249,19 +251,19 @@ span.attribute-desc {
     height: 20px;
 }
 
-div.attribute:hover span.attribute-desc {
+div.planner.attribute:hover span.attribute-desc {
     color: rgba(0, 0, 0, 0.7);
     transition: color 0.2s;
 }
 
-hr {
+hr.planner {
     width: 100%;
     height: 1px;
     border: none;
     background-color: rgba(0, 0, 0, 0.09);
 }
 
-li {
+li.planner {
     display: block;
 }
 
@@ -293,15 +295,16 @@ a.planner.link-button {
 }
 
 a.planner.link-button:hover {
-    text-decoration: underline;
+    /* text-decoration: underline; */
 }
 
 p.planner.loading-text {
     color: hsl(192, 20%, 34%);
     font-style: italic;
-    text-align:center;
+    text-align: center;
     margin: none;
 }
+
 /* background-color: hsl(191, 83%, 81%); */
 /* border: solid 1px hsl(191, 73%, 39%); */
 /* display: block; */
@@ -323,6 +326,73 @@ a.planner.link.link-login {
 i.planner.fas.fa-sync-alt {
     margin-right: 0.25em;
 }
+
+/* PLANNER Body */
+
+div.planner.planner-body {
+    display: inline-block;
+    background-color: hsl(198, 4%, 99%);
+    padding: 1em 2em;
+    transition: margin 0.2s;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    /* margin-left: 540px; */
+}
+
+button.planner.sidebar-expand {
+    display: none;
+    position: fixed;
+}
+
+div.planner.day {
+    width: 82%;
+    padding: 23px;
+    margin: 0px auto 0px auto;
+    display: block;
+    background: #FFFFFF;
+    color: #000000;
+    border-radius: 12px;
+    box-shadow: 2px 2px 16px -1px rgba(0, 0, 0, 0.3);
+    -webkit-box-shadow: 2px 2px 16px -1px rgba(0, 0, 0, 0.3);
+}
+
+
+/* PLANNER responsive */
+@media (max-width: 1280px) {
+    div.planner.sidebar {
+        position: fixed;
+        display: block;
+    }
+
+    div.planner.sidebar.hide {
+        transition: left 0.2s;
+        left: -504px;
+    }
+
+    div.planner.sidebar.show {
+        transition: left 0.3s;
+        left: 0;
+        max-width: 100vw;
+    }
+
+    button.planner.sidebar-expand {
+        display: inline-block;
+    }
+
+    div.planner.sidebar.show~div.planner.planner-body {
+        transition: margin 0.3s;
+    }
+
+    div.planner.sidebar.hide~div.planner.planner-body {
+        margin-left: 0;
+    }
+
+
+    /* div.planner.sidebar.show~div. */
+}
+
+
 
 /*========   LOGIN   ========*/
 
@@ -353,7 +423,7 @@ input.login {
     padding: 0.75em;
     border-radius: 4px;
     border: 1px solid rgba(0, 0, 0, 0.3);
-    outline:none;
+    outline: none;
     color: hsl(191, 97%, 15%);
     /* box-shadow: inset 0 2px 2px rgba(0, 0, 0, 0.3); */
 }
@@ -379,8 +449,9 @@ a.planner.link-button {
 }
 
 button.login.submit:hover,
+button.login.submit:focus,
 a.planner.link-button:hover {
-    transform: translate(0,-1px);
+    transform: translate(0, -1px);
     color: white;
     transition: transform 0.15s, box-shadow 0.15s, color 0.15s;
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
@@ -408,11 +479,11 @@ h3.login.header {
     margin-bottom: 0.75em;
     letter-spacing: 1px;
     font-size: 24px;
-    font-weight: 700;
+    font-weight: 600;
     text-align: center;
+    /* border: 1px solid; */
     color: hsl(191, 97%, 15%);
 }
-
 /*========   HOME   ========*/
 
 div.home.header {

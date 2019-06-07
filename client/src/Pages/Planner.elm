@@ -44,6 +44,7 @@ type alias ViewState =
     { loading : Maybe ViewLoadState
     , hovering : Maybe ContentKey
     , editing : Maybe ContentKey
+    , sidebarExpanded : Bool
     }
 
 
@@ -130,6 +131,7 @@ init session =
                 { hovering = Nothing
                 , editing = Nothing
                 , loading = Nothing
+                , sidebarExpanded = False
                 }
 
             -- , dayLoadState = Days.LoadingStateIdle
@@ -169,6 +171,7 @@ type Msg
     | ClickDiscardEdit ContentKey
     | ClickRemove ContentKey
     | CommitEdit
+    | ToggleSidebar
 
 
 
@@ -372,6 +375,9 @@ update msg model =
                            Err message ->
                                ( { model | dayLoadState = Days.LoadingStateError <| Just message }, Cmd.none )
                 -}
+                ToggleSidebar ->
+                    cmdnone { model | viewState = (\vs -> { vs | sidebarExpanded = not vs.sidebarExpanded }) model.viewState }
+
                 _ ->
                     ( model, Cmd.none )
 
@@ -588,26 +594,29 @@ view : Model -> List (Html Msg)
 view model =
     case model.user of
         UserLSuccess user ->
-            [ div [ class "sidebar" ]
-                [ text ("email: " ++ user.email)
-                , div []
-                    [ case model.viewState.loading of
-                        Just ViewLLoading ->
-                            text "..."
+            [ div
+                [ class <|
+                    "planner sidebar "
+                        ++ (if model.viewState.sidebarExpanded then
+                                "show"
 
-                        Just ViewLError ->
-                            text "error. Could not sync"
-
-                        _ ->
-                            text "synchronized"
-                    ]
-                , viewAttributes user model.viewState
+                            else
+                                "hide"
+                           )
                 ]
-            , div [ class "planner" ] [ text "days " ]
-
-            -- , viewGoals user model.viewState
-            -- , div [] []
-            -- , viewDays model.dayLoadState model.userPatchState
+                [ div [ class "planner sidebar-header" ]
+                    [ h2 [ class "planner sidebar-header-text" ] [ text "daycare" ]
+                    , viewSyncIndicator model.viewState.loading
+                    ]
+                , div [ class "planner sidebar-body" ]
+                    [ -- text ("email: " ++ user.email)
+                      viewAttributes user model.viewState
+                    ]
+                ]
+            , div [ class "planner planner-body" ]
+                [ button [ class "planner sidebar-expand", onClick ToggleSidebar ] [ text ">" ]
+                , viewDays
+                ]
             ]
 
         UserLWait ->
@@ -645,6 +654,51 @@ view model =
 --     ]
 
 
+viewSyncIndicator : Maybe ViewLoadState -> Html Msg
+viewSyncIndicator loading =
+    div [ class "planner sync-indicator" ]
+        [ case loading of
+            Just ViewLLoading ->
+                i
+                    [ class "planner fas fa-spinner"
+                    , title "Loading..."
+                    ]
+                    []
+
+            Just ViewLError ->
+                i
+                    [ class "planner fas fa-exclamation-circle"
+                    , title "Error! Could not sync."
+                    ]
+                    []
+
+            _ ->
+                i
+                    [ class "planner fas fa-check-circle"
+                    , title "Up to date!"
+                    ]
+                    []
+        ]
+
+
+viewDays =
+    div [ class "planner days" ]
+        [ div [ class " planner day" ]
+            [ div
+                [ class "planner day-header" ]
+                [ h4 [ class "planner day-date" ] [ text "26.05.2019" ]
+                , p [ class "planner day-description" ] [ text "not much" ]
+                ]
+            , div [ class "planner day-body" ]
+                [ ul [ class "planner day-tasks" ]
+                    [ li [ class "planner day-task" ] [ text "raus" ]
+                    , li [ class "planner day-task" ] [ text "daycare" ]
+                    ]
+                ]
+            ]
+        ]
+
+
 viewResponseHttpError : Http.Error -> String
 viewResponseHttpError err =
     case err of
@@ -677,7 +731,7 @@ viewAttributes user viewState =
         -- |> ul []
         -- |> lazy
         -- |> List.singleton
-        |> div [ class "attributes" ]
+        |> div [ class "planner attributes" ]
 
 
 viewAttribute : Int -> Attribute -> Maybe ViewLoadState -> Maybe ContentKey -> Html Msg
@@ -717,7 +771,7 @@ viewAttribute index att loading editing =
                     input
                         [ onInput (EditingAttributePart (AShort index))
                         , value att_.short
-                        , class "attribute-short"
+                        , class "planner attribute-short"
                         ]
                         []
 
@@ -725,7 +779,7 @@ viewAttribute index att loading editing =
                     input
                         [ onInput (EditingAttributePart (AName index))
                         , value att_.name
-                        , class "attribute-name"
+                        , class "planner attribute-name"
                         ]
                         []
 
@@ -733,7 +787,7 @@ viewAttribute index att loading editing =
                     textarea
                         [ onInput
                             (EditingAttributePart (ADescription index))
-                        , class "attribute-desc"
+                        , class "planner attribute-desc"
                         ]
                         [ description ]
 
@@ -743,10 +797,10 @@ viewAttribute index att loading editing =
             div
                 [ onMouseOver <| HoverEvent key True
                 , onMouseOut <| HoverEvent key False
-                , class "attribute editing"
+                , class "planner attribute editing"
                 ]
                 [ Html.form [ onSubmit (ClickExpand key) ]
-                    [ div [ class "attribute-editing-header" ]
+                    [ div [ class "planner attribute-editing-header" ]
                         [ shortinput
                         , nameinput
 
@@ -755,10 +809,10 @@ viewAttribute index att loading editing =
                         --     text ""
                         --   else
                         --     {- touched editing -}
-                        , div [ class "buttons editing" ]
-                            [ button [ type_ "button", onClick (ClickRemove key), class "fas fa-trash" ] []
-                            , button [ type_ "button", onClick (ClickDiscardEdit key), class "fas fa-times" ] []
-                            , button [ type_ "submit", class "fas fa-check" ] [] --text "⇧"
+                        , div [ class "planner buttons editing" ]
+                            [ button [ type_ "button", onClick (ClickRemove key), class "planner fas fa-trash" ] []
+                            , button [ type_ "button", onClick (ClickDiscardEdit key), class "planner fas fa-times" ] []
+                            , button [ type_ "submit", class "planner fas fa-check" ] [] --text "⇧"
                             ]
                         ]
                     ]
@@ -769,19 +823,19 @@ viewAttribute index att loading editing =
             div
                 [ onMouseOver <| HoverEvent key True
                 , onMouseOut <| HoverEvent key False
-                , class "attribute draggable"
+                , class "planner attribute draggable"
                 , id <| "att-" ++ String.fromInt index
                 , draggable "true"
                 , attribute "ondragstart" "drag(event)"
                 ]
-                [ div [ class "attribute-header" ]
-                    [ div [ class "attribute-short-wrapper" ]
-                        [ h4 [ class "attribute-short" ] [ text att.short ] ]
-                    , h3 [ class "attribute-name", onClick (ClickExpand key) ] [ text att.name ]
-                    , div [ class "attribute-desc-wrapper" ]
-                        [ span [ class "attribute-desc" ] [ description ] ]
+                [ div [ class "planner attribute-header" ]
+                    [ div [ class "planner attribute-short-wrapper" ]
+                        [ h4 [ class "planner attribute-short" ] [ text att.short ] ]
+                    , h3 [ class "planner attribute-name", onClick (ClickExpand key) ] [ text att.name ]
+                    , div [ class "planner attribute-desc-wrapper" ]
+                        [ span [ class "planner attribute-desc" ] [ description ] ]
                     ]
-                , div [ class "buttons" ] [ button [ class "fas fa-pen", onClick (ClickExpand key), tabindex 0 ] [] ]
+                , div [ class "planner buttons" ] [ button [ class "planner fas fa-pen", onClick (ClickExpand key), tabindex 0 ] [] ]
                 ]
 
 
