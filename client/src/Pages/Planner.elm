@@ -1,7 +1,8 @@
-port module Pages.Planner exposing (Attribute, AttributeKey(..), ContentKey(..), DayKey(..), EditState(..), Goal, GoalKey(..), Model, Msg(..), User, UserLoadState(..), UserPart(..), UserPatchState, ViewLoadState(..), ViewState, decodeAttribute, decodeAttributeKey, decodeGoal, decodeGoalKey, decodeUserLoadState, editingPort, encodeAttribute, encodeGoal, indexFromPart, init, loadDays, loadUser, submitEditPort, subscriptions, toSession, update, updateAttribute, updateAttributePart, updateAttributeSend, updateAttributes, updateGoalPart, updateGoalSend, updateGoals, view, viewAttribute, viewAttributes, viewGoal, viewGoals, viewResponseHttpError)
+port module Pages.Planner exposing (AlwaysMsg(..), Attribute, AttributeKey(..), ContentKey(..), ContentKeyW(..), DayKey(..), DaysLoadState(..), EditState(..), Goal, GoalKey(..), Model, Msg(..), User, UserLoadState(..), UserPart(..), UserPatchState, ViewLoadState(..), ViewState, addAttribute, decodeAttribute, decodeAttributeKey, decodeGoal, decodeGoalKey, decodeUserLoadState, editingPort, encodeAttribute, encodeGoal, getToday, init, loadDays, loadUser, loadedTokenPlanner, patchAttribute, patchGoals, saveTokenPlanner, submitEditPort, subscriptions, toSession, update, updateAttribute, updateAttributePart, updateAttributeSend, updateGoalPart, updateGoalSend, view, viewAttribute, viewAttributes, viewDay, viewDays, viewGoal, viewGoals, viewResponseHttpError, viewSyncIndicator, viewTask, viewTasks)
 
 import Array exposing (Array)
-import Days exposing (Date, Day, Days, Task)
+import Date exposing (Date)
+import Days exposing (Day, Days, Task)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onMouseOut, onMouseOver, onSubmit)
@@ -12,19 +13,34 @@ import Json.Decode as D
 import Json.Encode as E
 import Route
 import Session exposing (Session)
+import Task
+import Time exposing (Month(..))
 
 
 type alias Model =
     { session : Session
     , user : UserLoadState
+    , days : DaysLoadState
     , viewState : ViewState
     , errormsg : Maybe String
+    , today : Date
     }
 
 
 
 -- , userPatchState : UserPatchState
 -- , days : Days.Model
+
+
+type alias ViewState =
+    { loading : Maybe ViewLoadState
+
+    -- , hovering : Maybe ContentKey
+    , editing : Maybe ContentKey
+    , sidebarExpanded : Bool
+    , adding : Maybe ContentKey
+    , dayRange : ( Date, Date )
+    }
 
 
 type UserLoadState
@@ -34,23 +50,22 @@ type UserLoadState
     | UserLSuccess User
 
 
+type DaysLoadState
+    = DaysLIdle
+    | DaysLWait
+    | DaysLError Http.Error
+    | DaysLSuccess (Array Day)
+
+
 type alias UserPatchState =
     { state : UserLoadState
     , editing : Maybe EditState
     }
 
 
-type alias ViewState =
-    { loading : Maybe ViewLoadState
-    , hovering : Maybe ContentKey
-    , editing : Maybe ContentKey
-    , sidebarExpanded : Bool
-    }
-
-
 type ViewLoadState
     = ViewLLoading
-    | ViewLError
+    | ViewLError Http.Error
     | ViewLSuccess
 
 
@@ -62,9 +77,9 @@ type alias User =
 
 
 type alias Attribute =
-    { short_ : String
-    , short : String
+    { name_ : String
     , name : String
+    , short : String
     , description : Maybe String
     }
 
@@ -94,10 +109,13 @@ type UserPart
 
 
 type AttributeKey
-    = AShort Int
-    | AName Int
-    | ADescription Int
-    | ASend Int
+    = AShort String
+    | AName String
+    | ADescription String
+
+
+
+-- | ASend Int
 
 
 type GoalKey
@@ -114,32 +132,52 @@ type DayKey
 type ContentKey
     = AttributeKey Int Attribute
     | GoalKey Int Goal
+    | DayTaskKey Int Days.Task
+    | DayKey Int Days.Day
+
+
+type ContentKeyW
+    = AttributeKeyW (Maybe AttributeKey)
+    | GoalkeyW (Maybe GoalKey)
+    | DayTaskKeyW Int
+    | DayKeyW (Maybe DayKey)
 
 
 init : Session -> ( Model, Cmd Msg )
 init session =
     let
+        range =
+            ( Date.fromCalendarDate 2001 Jul 25, Date.fromCalendarDate 2001 Jul 25 )
+
         model =
             { session = session
             , user = UserLIdle
+            , days = DaysLIdle
 
             -- , userPatchState =
             --     { state = UserLIdle
             --     , editing = Nothing
             --     }
             , viewState =
-                { hovering = Nothing
-                , editing = Nothing
+                { editing = Nothing
+
+                --  hovering = Nothing
                 , loading = Nothing
                 , sidebarExpanded = False
+                , adding = Nothing
+                , dayRange = range
                 }
 
             -- , dayLoadState = Days.LoadingStateIdle
             , errormsg = Nothing
+            , today = Date.fromCalendarDate 2001 Jul 25
             }
 
         maybetoken =
-            Session.cred session
+            Session.token session
+
+        -- range =
+        --     ( Date.fromCalendarDate 2019 Jun 6, Date.fromCalendarDate 2019 Jun 4 )
     in
     case maybetoken of
         Nothing ->
@@ -147,7 +185,8 @@ init session =
 
         Just token ->
             ( { model | user = UserLWait }
-            , loadUser token
+              -- , days = DaysLWait }
+            , Cmd.batch [ loadUser token, getToday ]
             )
 
 
@@ -155,26 +194,42 @@ init session =
 -- Update
 
 
-type Msg
-    = LoadedToken String
-    | UserLoginLoadedLoadUserContent (Result Http.Error String)
-    | LoadUserContent
-    | LoadedUserContent (Result Http.Error User)
-    | UpdateAttributePart AttributeKey String
+type
+    Msg
+    -- | UserLoginLoadedLoadUserContent (Result Http.Error String)
+    -- | LoadUserContent
+    = UpdateAttributePart AttributeKey String
     | UpdateGoalPart ContentKey GoalKey
-    | EditingAttributePart AttributeKey String
-    | LoadedUserPart (Result Http.Error ContentKey)
+    | LoadedUserPart (Result Http.Error ())
     | LoadDays
     | LoadedDays (Result Http.Error Days)
-    | HoverEvent ContentKey Bool
+      -- | HoverEvent ContentKey Bool
     | ClickExpand ContentKey
     | ClickDiscardEdit ContentKey
     | ClickRemove ContentKey
     | CommitEdit
     | ToggleSidebar
+    | AddElementShow ContentKeyW
+    | AddElementSubmit
+    | AddElementEdit ContentKeyW String
+    | EditingElementPart ContentKeyW
+    | AlwaysMsg AlwaysMsg
 
 
 
+-- | RequireUserMsg RequireUserMsg
+-- | RequireDaysMsg RequireDaysMsg
+
+
+type AlwaysMsg
+    = Today Date
+    | LoadedToken String
+    | LoadedUserContent (Result Http.Error User)
+
+
+
+-- type RequireDaysMsg
+--     =
 -- | UpdateGoal GoalKey
 -- | UpdateDay DayKey
 
@@ -183,206 +238,50 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
         maybetoken =
-            Session.cred model.session
+            Session.token model.session
 
-        maybecontent =
+        maybeuser =
             case model.user of
-                UserLSuccess content ->
-                    Just content
+                UserLSuccess user ->
+                    Just user
 
                 _ ->
                     Nothing
-    in
-    case ( maybetoken, maybecontent ) of
-        ( Just token, Nothing ) ->
-            case msg of
-                LoadUserContent ->
-                    ( { model | user = UserLWait }, loadUser token )
 
+        maybedays =
+            case model.days of
+                DaysLSuccess days ->
+                    Just days
+
+                _ ->
+                    Nothing
+
+        _ =
+            Debug.log "message" msg
+
+        cmdnone a =
+            Debug.log "modelupdate" <| ( a, Cmd.none )
+    in
+    case msg of
+        AlwaysMsg alwaysmsg ->
+            case alwaysmsg of
                 LoadedUserContent (Ok content) ->
-                    ( { model | user = UserLSuccess content }, Cmd.none )
+                    update LoadDays { model | user = UserLSuccess content, days = DaysLWait }
 
                 LoadedUserContent (Err message) ->
                     ( { model | user = UserLError message }, Cmd.none )
 
-                _ ->
-                    ( model, Cmd.none )
-
-        ( Just token, Just user ) ->
-            let
-                cmdnone a =
-                    ( a, Cmd.none )
-            in
-            case msg of
-                ClickDiscardEdit key ->
-                    cmdnone
-                        { model
-                            | viewState =
-                                (\vs -> { vs | editing = Nothing, loading = Nothing }) model.viewState
-                        }
-
-                ClickRemove key ->
+                Today date ->
                     let
-                        attributes =
-                            ""
-                    in
-                    cmdnone model
+                        range =
+                            ( date, Date.add Date.Days -7 date )
 
-                EditingAttributePart part value ->
-                    let
-                        maybeAttribute =
-                            Array.get index user.attributes
-
-                        index =
-                            indexFromPart part
-                    in
-                    case maybeAttribute of
-                        Just attribute ->
-                            let
-                                userNewattribute =
-                                    case part of
-                                        AName _ ->
-                                            { attribute | name = value }
-
-                                        ADescription _ ->
-                                            { attribute | description = Just value }
-
-                                        _ ->
-                                            Debug.todo "implement other"
-                            in
-                            cmdnone
-                                { model
-                                    | viewState =
-                                        (\vs ->
-                                            { vs | editing = Just (AttributeKey index userNewattribute) }
-                                        )
-                                            model.viewState
-                                }
-
-                        _ ->
-                            cmdnone model
-
-                HoverEvent key hovering ->
-                    if hovering then
-                        cmdnone
-                            { model
-                                | viewState =
-                                    (\vs -> { vs | hovering = Just key })
-                                        model.viewState
-                            }
-
-                    else
-                        cmdnone
-                            { model
-                                | viewState =
-                                    (\vs -> { vs | hovering = Nothing })
-                                        model.viewState
-                            }
-
-                ClickExpand (AttributeKey index att) ->
-                    let
-                        vsNone =
-                            { editing = Nothing, hovering = Nothing, loading = Nothing }
-
-                        key =
-                            AttributeKey index att
-
-                        updateViewState cont =
-                            (\vs -> { vs | editing = cont }) model.viewState
-
-                        -- if expanded then
-                        -- save to model, retract and expand other (key)
-                        vsNothing =
-                            updateViewState Nothing
-
-                        vsNothingLoad =
-                            { vsNothing | loading = Just ViewLLoading }
-
-                        vsKey =
-                            updateViewState (Just key)
-
-                        vsKeyLoad =
-                            { vsKey | loading = Just ViewLLoading }
-                    in
-                    case model.viewState.editing of
-                        Just (AttributeKey index_ att_) ->
-                            let
-                                userNewAttributes =
-                                    { user | attributes = Array.set index_ att_ user.attributes }
-                            in
-                            if index == index_ && att == att_ then
-                                {- dont update but retract -}
-                                cmdnone { model | viewState = vsNothing }
-
-                            else if index == index_ then
-                                {- update and retract -}
-                                ( { model | user = UserLSuccess userNewAttributes, viewState = vsNothingLoad }, updateAttributes token att_ )
-
-                            else
-                                {- update and expand -}
-                                ( { model | user = UserLSuccess userNewAttributes, viewState = vsKeyLoad }, Cmd.batch [ updateAttributes token att_, editingPort () ] )
-
-                        Just (GoalKey index_ goal_) ->
-                            let
-                                newGoals =
-                                    { user | goals = Array.set index_ goal_ user.goals }
-                            in
-                            {- update goal and expand -}
-                            ( { model | user = UserLSuccess newGoals, viewState = vsKeyLoad }, Cmd.batch [ updateGoals token goal_, editingPort () ] )
-
-                        Nothing ->
-                            {- expand -}
-                            ( { model | viewState = vsKey }, editingPort () )
-
-                -- UpdateDay part ->
-                --     Days.updatePart model part
-                CommitEdit ->
-                    let
                         model_ =
-                            { model | viewState = (\vs_ -> { vs_ | editing = Nothing }) model.viewState }
+                            { model | today = date, viewState = (\vs -> { vs | dayRange = range }) model.viewState }
                     in
-                    case model.viewState.editing of
-                        Just (AttributeKey index att) ->
-                            let
-                                userNewAttributes =
-                                    { user | attributes = Array.set index att user.attributes }
-                            in
-                            ( { model_ | user = UserLSuccess userNewAttributes }, updateAttributes token att )
+                    -- update (LoadDays range) model_
+                    cmdnone model_
 
-                        Just (GoalKey index goal) ->
-                            ( model_, Cmd.none )
-
-                        Nothing ->
-                            cmdnone model
-
-                LoadedUserPart (Ok key) ->
-                    let
-                        up =
-                            (\vs -> { vs | loading = Just ViewLSuccess }) model.viewState
-                    in
-                    ( { model | viewState = up }, loadUser token )
-
-                -- ( { model | userPatchState = { editing = Nothing, state = UserLError Nothing } }, Cmd.none )
-                {- LoadDays ->
-                       ( { model | dayLoadState = Days.LoadingStateWait }, loadDays token )
-
-                   -- ( model, Cmd.none )
-                   -- LoadedDays result ->
-                       case result of
-                           Ok days ->
-                               ( { model | dayLoadState = Days.LoadingStateSuccess <| Just days }, Cmd.none )
-
-                           Err message ->
-                               ( { model | dayLoadState = Days.LoadingStateError <| Just message }, Cmd.none )
-                -}
-                ToggleSidebar ->
-                    cmdnone { model | viewState = (\vs -> { vs | sidebarExpanded = not vs.sidebarExpanded }) model.viewState }
-
-                _ ->
-                    ( model, Cmd.none )
-
-        ( Nothing, _ ) ->
-            case msg of
                 LoadedToken token ->
                     let
                         key =
@@ -396,13 +295,280 @@ update msg model =
                     else
                         ( model, Cmd.none )
 
-                _ ->
+        msg_ ->
+            case ( maybetoken, maybeuser, maybedays ) of
+                ( Just token, Just user, Just days ) ->
+                    case msg_ of
+                        ClickDiscardEdit key ->
+                            cmdnone
+                                { model
+                                    | viewState =
+                                        (\vs -> { vs | editing = Nothing, loading = Nothing }) model.viewState
+                                }
+
+                        ClickRemove key ->
+                            Debug.todo "not implemented clickremove"
+
+                        EditingElementPart element ->
+                            case element of
+                                AttributeKeyW (Just part) ->
+                                    case model.viewState.editing of
+                                        Just (AttributeKey index att) ->
+                                            let
+                                                newAtt =
+                                                    case part of
+                                                        AShort value ->
+                                                            { att | short = value }
+
+                                                        AName value ->
+                                                            { att | name = value }
+
+                                                        ADescription value ->
+                                                            { att | description = Just value }
+                                            in
+                                            cmdnone
+                                                { model
+                                                    | viewState =
+                                                        (\vs ->
+                                                            { vs | editing = Just (AttributeKey index newAtt) }
+                                                        )
+                                                            model.viewState
+                                                }
+
+                                        _ ->
+                                            cmdnone model
+
+                                _ ->
+                                    Debug.todo "implement other editing"
+
+                        {- HoverEvent key hovering ->
+                           if hovering then
+                               cmdnone
+                                   { model
+                                       | viewState =
+                                           (\vs -> { vs | hovering = Just key })
+                                               model.viewState
+                                   }
+
+                           else
+                               cmdnone
+                                   { model
+                                       | viewState =
+                                           (\vs -> { vs | hovering = Nothing })
+                                               model.viewState
+                                   }
+                        -}
+                        ClickExpand (AttributeKey index att) ->
+                            let
+                                vsNone =
+                                    { editing = Nothing, hovering = Nothing, loading = Nothing }
+
+                                key =
+                                    AttributeKey index att
+
+                                updateViewState cont =
+                                    (\vs -> { vs | editing = cont }) model.viewState
+
+                                -- if expanded then
+                                -- save to model, retract and expand other (key)
+                                vsNothing =
+                                    updateViewState Nothing
+
+                                vsNothingLoad =
+                                    { vsNothing | loading = Just ViewLLoading }
+
+                                vsKey =
+                                    updateViewState (Just key)
+
+                                vsKeyLoad =
+                                    { vsKey | loading = Just ViewLLoading }
+
+                                action =
+                                    case att.name_ of
+                                        "" ->
+                                            addAttribute token
+
+                                        _ ->
+                                            Debug.log "action patch" <| patchAttribute token
+                            in
+                            case model.viewState.editing of
+                                Just (AttributeKey index_ att_) ->
+                                    let
+                                        userNewAttributes =
+                                            { user | attributes = Array.set index_ att_ user.attributes }
+                                    in
+                                    if att == att_ then
+                                        {- dont update but retract -}
+                                        cmdnone { model | viewState = vsNothing }
+                                        -- else if index == index_ then -- index == index_ &&
+                                        --     {- update and retract -}
+                                        --     ( { model | user = UserLSuccess userNewAttributes, viewState = vsNothingLoad }, action att_ )
+
+                                    else
+                                        {- update and expand -}
+                                        ( { model | user = UserLSuccess userNewAttributes, viewState = vsKeyLoad }, Cmd.batch [ action att_, editingPort () ] )
+
+                                Just (GoalKey index_ goal_) ->
+                                    let
+                                        newGoals =
+                                            { user | goals = Array.set index_ goal_ user.goals }
+                                    in
+                                    {- update goal and expand -}
+                                    ( { model | user = UserLSuccess newGoals, viewState = vsKeyLoad }, Cmd.batch [ patchGoals token goal_, editingPort () ] )
+
+                                _ ->
+                                    cmdnone model
+
+                        -- Nothing ->
+                        --     {- expand -}
+                        --     ( { model | viewState = vsKey }, editingPort () )
+                        -- UpdateDay part ->
+                        --     Days.updatePart model part
+                        CommitEdit ->
+                            let
+                                model_ =
+                                    { model | viewState = (\vs_ -> { vs_ | editing = Nothing }) model.viewState }
+                            in
+                            case model.viewState.editing of
+                                Just (AttributeKey index att) ->
+                                    let
+                                        userNewAttributes =
+                                            { user | attributes = Array.set index att user.attributes }
+                                    in
+                                    ( { model_ | user = UserLSuccess userNewAttributes }, patchAttribute token att )
+
+                                Just (GoalKey index goal) ->
+                                    ( model_, Cmd.none )
+
+                                Nothing ->
+                                    cmdnone model_
+
+                                _ ->
+                                    Debug.todo "implement other"
+
+                        LoadedUserPart (Ok _) ->
+                            ( { model | viewState = (\vs -> { vs | loading = Just ViewLSuccess }) model.viewState }, loadUser token )
+
+                        LoadedUserPart (Err err) ->
+                            ( { model | viewState = (\vs -> { vs | loading = Just (ViewLError err) }) model.viewState }, loadUser token )
+
+                        -- ( { model | userPatchState = { editing = Nothing, state = UserLError Nothing } }, Cmd.none )
+                        {- LoadDays ->
+                               ( { model | dayLoadState = Days.LoadingStateWait }, loadDays token )
+
+                           -- ( model, Cmd.none )
+                           -- LoadedDays result ->
+                               case result of
+                                   Ok days ->
+                                       ( { model | dayLoadState = Days.LoadingStateSuccess <| Just days }, Cmd.none )
+
+                                   Err message ->
+                                       ( { model | dayLoadState = Days.LoadingStateError <| Just message }, Cmd.none )
+                        -}
+                        ToggleSidebar ->
+                            cmdnone { model | viewState = (\vs -> { vs | sidebarExpanded = not vs.sidebarExpanded }) model.viewState }
+
+                        {- AddAttributeShow ->
+                           let
+                               att =
+                                   Attribute "" "" "" (Just "")
+
+                               atts =
+                                   Array.push att user.attributes
+
+                               index =
+                                   Array.length atts - 1
+
+                               user_ =
+                                   { user | attributes = atts }
+                           in
+                            cmdnone { model | user = UserLSuccess user_, viewState = (\vs -> { vs | editing = Just (AttributeKey index att) }) model.viewState }
+                        -}
+                        AddElementShow (AttributeKeyW _) ->
+                            let
+                                att =
+                                    Attribute "" "" "" Nothing
+
+                                index =
+                                    Array.length user.attributes - 1
+                            in
+                            cmdnone { model | viewState = (\vs -> { vs | adding = Just <| AttributeKey index att }) model.viewState }
+
+                        AddElementShow (DayTaskKeyW index) ->
+                            let
+                                task =
+                                    Days.Task "" "" Days.TSTodo Nothing
+                            in
+                            cmdnone { model | viewState = (\vs -> { vs | adding = Just <| DayTaskKey index task }) model.viewState }
+
+                        AddElementSubmit ->
+                            let
+                                ( model_, msg__ ) =
+                                    case model.viewState.adding of
+                                        Just (DayTaskKey index task) ->
+                                            let
+                                                maybeday =
+                                                    Array.get index days
+
+                                                -- days_ =
+                                            in
+                                            case maybeday of
+                                                Just day_ ->
+                                                    let
+                                                        tasks =
+                                                            Array.append day_.tasks <| Array.fromList [ task ]
+
+                                                        day =
+                                                            { day_ | tasks = tasks }
+
+                                                        days_ =
+                                                            Array.set index day days
+                                                    in
+                                                    ( { model | days = DaysLSuccess days_ }, patchDay token day )
+
+                                                _ ->
+                                                    ( model, Cmd.none )
+
+                                        _ ->
+                                            Debug.todo "implement other submit"
+                            in
+                            ( { model_ | viewState = (\vs -> { vs | adding = Nothing }) model.viewState }, msg__ )
+
+                        AddElementEdit key value ->
+                            case key of
+                                DayTaskKeyW index ->
+                                    let
+                                        task =
+                                            Days.Task value value Days.TSTodo Nothing
+                                    in
+                                    cmdnone { model | viewState = (\vs -> { vs | adding = Just <| DayTaskKey index task }) model.viewState }
+
+                                _ ->
+                                    Debug.todo "implement other edit"
+
+                        _ ->
+                            ( model, Cmd.none )
+
+                ( Just token, Just _, _ ) ->
+                    case msg_ of
+                        LoadDays ->
+                            -- let
+                            --     range =
+                            --         ( Date.fromCalendarDate 2019 Jun 6, Date.fromCalendarDate 2019 Jun 4 )
+                            -- in
+                            ( { model | days = DaysLWait }, loadDays token model.viewState.dayRange )
+
+                        LoadedDays (Ok days_) ->
+                            cmdnone { model | days = DaysLSuccess days_ }
+
+                        LoadedDays (Err err) ->
+                            cmdnone { model | days = DaysLError err }
+
+                        _ ->
+                            cmdnone model
+
+                ( _, _, _ ) ->
                     ( model, Cmd.none )
-
-
-
--- ( _, _ ) ->
---     ( model, Cmd.none )
 
 
 updateAttributePart : Model -> Int -> AttributeKey -> String -> ( Model, Cmd Msg )
@@ -422,9 +588,6 @@ updateAttributePart model index attKey value =
 
                                 ADescription _ ->
                                     { content | attributes = Array.set index { att | description = Just value } content.attributes }
-
-                                _ ->
-                                    content
 
                         Nothing ->
                             content
@@ -463,7 +626,7 @@ updateAttributeSend model token index =
             in
             case att of
                 Just value ->
-                    ( { model | viewState = up }, updateAttributes token value )
+                    ( { model | viewState = up }, patchAttribute token value )
 
                 Nothing ->
                     ( { model | viewState = up }, Cmd.none )
@@ -535,7 +698,7 @@ updateGoalSend model token index =
             in
             case att of
                 Just value ->
-                    ( up, updateGoals token value )
+                    ( up, patchGoals token value )
 
                 Nothing ->
                     ( up, Cmd.none )
@@ -544,45 +707,74 @@ updateGoalSend model token index =
             ( model, Cmd.none )
 
 
-indexFromPart : AttributeKey -> Int
-indexFromPart part =
-    case part of
-        AShort i ->
-            i
 
-        AName i ->
-            i
+{- indexFromPart : AttributeKey -> Int
+   indexFromPart part =
+       case part of
+           AShort i ->
+               i
 
-        ADescription i ->
-            i
+           AName i ->
+               i
 
-        ASend i ->
-            i
+           ADescription i ->
+               i
 
 
-updateAttributes : String -> Attribute -> Cmd Msg
-updateAttributes token attribute =
+
+    ASend i ->
+        i
+-}
+
+
+addAttribute : String -> Attribute -> Cmd Msg
+addAttribute token attribute =
+    Http.request
+        { method = "POST"
+        , timeout = Nothing
+        , tracker = Nothing
+        , body = Http.jsonBody <| encodeAttribute attribute
+        , headers = [ Http.header "token" token ]
+        , url = "http://188.165.149.226:5000/api/v3/users/me/attributes"
+        , expect = Http.expectWhatever LoadedUserPart
+        }
+
+
+patchAttribute : String -> Attribute -> Cmd Msg
+patchAttribute token attribute =
     Http.request
         { method = "PATCH"
         , timeout = Nothing
         , tracker = Nothing
         , body = Http.jsonBody <| encodeAttribute attribute
         , headers = [ Http.header "token" token ]
-        , url = "http://localhost:5000/api/v3/users/me/attributes/" ++ attribute.short_
-        , expect = Http.expectJson LoadedUserPart decodeAttributeKey
+        , url = "http://188.165.149.226:5000/api/v3/users/me/attributes/" ++ attribute.name_
+        , expect = Http.expectWhatever LoadedUserPart
         }
 
 
-updateGoals : String -> Goal -> Cmd Msg
-updateGoals token goal =
+patchGoals : String -> Goal -> Cmd Msg
+patchGoals token goal =
     Http.request
         { method = "PATCH"
         , timeout = Nothing
         , tracker = Nothing
         , body = Http.jsonBody <| encodeGoal goal
         , headers = [ Http.header "token" token ]
-        , url = "http://localhost:5000/api/v3/users/me/goals/" ++ goal.name_
-        , expect = Http.expectJson LoadedUserPart decodeGoalKey
+        , url = "http://188.165.149.226:5000/api/v3/users/me/goals/" ++ goal.name_
+        , expect = Http.expectWhatever LoadedUserPart
+        }
+
+
+patchDay token day =
+    Http.request
+        { method = "PATCH"
+        , timeout = Nothing
+        , tracker = Nothing
+        , body = Http.jsonBody <| Days.encodeDay day
+        , headers = [ Http.header "token" token ]
+        , url = "http://188.165.149.226:5000/api/v3/users/me/days/" ++ Date.format "YYYYMMdd" day.date_
+        , expect = Http.expectWhatever LoadedUserPart
         }
 
 
@@ -592,59 +784,67 @@ updateGoals token goal =
 
 view : Model -> List (Html Msg)
 view model =
-    case model.user of
-        UserLSuccess user ->
-            [ div
-                [ class <|
-                    "planner sidebar "
-                        ++ (if model.viewState.sidebarExpanded then
-                                "show"
+    [ text <| "" ]
+        ++ (case model.user of
+                UserLSuccess user ->
+                    [ div [ class "planner header" ] [ text user.email ]
+                    , div
+                        [ class <|
+                            "planner sidebar "
+                                ++ (if model.viewState.sidebarExpanded then
+                                        "show"
 
-                            else
-                                "hide"
-                           )
-                ]
-                [ div [ class "planner sidebar-header" ]
-                    [ h2 [ class "planner sidebar-header-text" ] [ text "daycare" ]
-                    , viewSyncIndicator model.viewState.loading
+                                    else
+                                        "hide"
+                                   )
+                        ]
+                        [ div [ class "planner sidebar-header" ]
+                            [ i [ class "fas fa-user-circle", title user.email ] []
+                            , h2 [ class "planner sidebar-header-text" ] [ text "daycare" ]
+                            , viewSyncIndicator model.viewState.loading
+                            ]
+                        , hr [ class "planner sidebar" ] []
+                        , div [ class "planner sidebar-body" ]
+                            [ -- text ("email: " ++ user.email)
+                              viewAttributes user model.viewState
+                            ]
+                        ]
+                    , div [ class "planner planner-body" ]
+                        [ button [ class "planner sidebar-expand", onClick ToggleSidebar ] [ text ">" ]
+                        , viewDays model.days model.viewState
+                        ]
                     ]
-                , div [ class "planner sidebar-body" ]
-                    [ -- text ("email: " ++ user.email)
-                      viewAttributes user model.viewState
-                    ]
-                ]
-            , div [ class "planner planner-body" ]
-                [ button [ class "planner sidebar-expand", onClick ToggleSidebar ] [ text ">" ]
-                , viewDays
-                ]
-            ]
 
-        UserLWait ->
-            [ div [ class "planner container" ]
-                [ div [ class "planner box" ]
-                    [ p [ class "planner loading-text" ] [ text "Loading content..." ] ]
-                ]
-            ]
-
-        UserLError error ->
-            [ div [ class "planner container" ]
-                [ div [ class "planner box" ]
-                    [ p [ class "planner error-text" ]
-                        [ text <| "Error (" ++ viewResponseHttpError error ++ ")" ]
-                    , a [ class "planner link-button", Route.href Route.App ]
-                        [ i [ class "planner fas fa-sync-alt" ] [], text "Refresh" ]
+                UserLWait ->
+                    [ div [ class "planner container" ]
+                        [ div [ class "planner box" ]
+                            [ p [ class "planner loading-text" ] [ text "Loading content..." ] ]
+                        ]
                     ]
-                ]
-            ]
 
-        UserLIdle ->
-            [ div [ class "planner container" ]
-                [ div [ class "planner error-container" ]
-                    [ p [ class "planner error-text" ] [ text "You have to be logged in to view this page." ]
-                    , a [ class "planner link-button", Route.href Route.Login ] [ text "Login" ]
+                UserLError error ->
+                    [ div [ class "planner container" ]
+                        [ div [ class "planner box" ]
+                            [ p [ class "planner error-text" ]
+                                [ text <| "Error (" ++ viewResponseHttpError error ++ ")" ]
+                            , a [ class "planner link-button", Route.href Route.App ]
+                                [ i [ class "planner fas fa-sync-alt" ] [], text "Refresh" ]
+                            ]
+                        ]
                     ]
-                ]
-            ]
+
+                UserLIdle ->
+                    [ div [ class "planner container" ]
+                        [ div [ class "planner box" ]
+                            -- [ div [ class "planner dialog-box" ]
+                            [ p [ class "planner error-text" ] [ text "You have to be logged in to view this page." ]
+                            , a [ class "planner link-button", Route.href Route.Login ] [ text "Login" ]
+                            ]
+
+                        -- ]
+                        ]
+                    ]
+           )
 
 
 
@@ -665,7 +865,7 @@ viewSyncIndicator loading =
                     ]
                     []
 
-            Just ViewLError ->
+            Just (ViewLError err) ->
                 i
                     [ class "planner fas fa-exclamation-circle"
                     , title "Error! Could not sync."
@@ -681,22 +881,88 @@ viewSyncIndicator loading =
         ]
 
 
-viewDays =
+viewDays : DaysLoadState -> ViewState -> Html Msg
+viewDays daysLs viewState =
     div [ class "planner days" ]
-        [ div [ class " planner day" ]
-            [ div
-                [ class "planner day-header" ]
-                [ h4 [ class "planner day-date" ] [ text "26.05.2019" ]
-                , p [ class "planner day-description" ] [ text "not much" ]
-                ]
-            , div [ class "planner day-body" ]
-                [ ul [ class "planner day-tasks" ]
-                    [ li [ class "planner day-task" ] [ text "raus" ]
-                    , li [ class "planner day-task" ] [ text "daycare" ]
-                    ]
-                ]
+        (case daysLs of
+            DaysLSuccess days ->
+                Array.indexedMap (viewDay viewState) days |> Array.toList
+
+            -- ++ [ div [ class "planner day add-day" ] []
+            {- [ i [ class "planner day-add-button fas fa-plus-circle" ] []
+
+               -- text "add day lol" ]
+               ]
+            -}
+            DaysLWait ->
+                [ text "..." ]
+
+            DaysLError err ->
+                [ text <| "error occurred. " ++ viewResponseHttpError err ]
+
+            _ ->
+                [ text "not loading yet", button [ onClick LoadDays ] [ text "load" ] ]
+        )
+
+
+viewDay : ViewState -> Int -> Day -> Html Msg
+viewDay viewState index day =
+    let
+        desc =
+            Maybe.withDefault "no description" day.description
+
+        date =
+            day.date
+                |> Date.format "dd.MM.YYYY"
+
+        adding =
+            Debug.log "adding" <|
+                case viewState.adding of
+                    Just (DayTaskKey index_ _) ->
+                        index == index_
+
+                    _ ->
+                        False
+    in
+    div [ class " planner day" ]
+        [ div
+            [ class "planner day-header" ]
+            [ h4 [ class "planner day-date" ] [ text date ]
+            , p [ class "planner day-description" ] [ text desc ]
             ]
+        , div [ class "planner day-body" ]
+            [ viewTasks index day adding ]
         ]
+
+
+viewTasks : Int -> Days.Day -> Bool -> Html Msg
+viewTasks index day adding =
+    ul [ class "planner day-tasks" ]
+        ((Array.map viewTask day.tasks
+            |> Array.toList
+         )
+            -- ++ [ div [ class "planner day-task add" ]
+            ++ [ if adding then
+                    li [ class "planner day-task adding" ]
+                        [ Html.form [ class "planner add-task-form", onSubmit AddElementSubmit ]
+                            [ input [ onInput (\i -> AddElementEdit (DayTaskKeyW index) i), placeholder "task" ] [] ]
+                        ]
+
+                 else
+                    li [ class "planner day-task add-task" ]
+                        [ i [ class "fas fa-plus", onClick <| AddElementShow <| DayTaskKeyW index ] []
+                        ]
+               ]
+        )
+
+
+
+-- |> List.reverse
+--    ]
+
+
+viewTask task =
+    li [ class "planner day-task" ] [ text task.name ]
 
 
 viewResponseHttpError : Http.Error -> String
@@ -707,16 +973,16 @@ viewResponseHttpError err =
             -- text ("Could not get token. Status " ++ String.fromInt code)
             case code of
                 401 ->
-                    "Wrong Username or Password"
+                    "wrong identifier or password"
 
                 500 ->
-                    "Server Error"
+                    "server error"
 
                 _ ->
-                    "Status " ++ String.fromInt code
+                    "http error status " ++ String.fromInt code
 
         Http.NetworkError ->
-            "Could not connect to server"
+            "could not connect to server"
 
         _ ->
             Debug.toString err
@@ -724,22 +990,30 @@ viewResponseHttpError err =
 
 viewAttributes : User -> ViewState -> Html Msg
 viewAttributes user viewState =
-    user.attributes
-        |> Array.indexedMap
-            (\index att -> lazy4 viewAttribute index att viewState.loading viewState.editing)
-        |> Array.toList
-        -- |> ul []
-        -- |> lazy
-        -- |> List.singleton
-        |> div [ class "planner attributes" ]
+    let
+        attributesList =
+            user.attributes
+                |> Array.indexedMap
+                    (\index att -> lazy4 viewAttribute index att viewState.loading viewState.editing)
+                |> Array.toList
+    in
+    div [ class "planner attributes" ] <|
+        [ div [ class "planner attributes-header" ]
+            [ h3 [ class "planner attributes-header-text" ] [ text "Attributes" ] ]
+        , hr [ class "planner" ] []
+        , div [ class "planner attributes-container" ] attributesList
+        , div
+            [ class "planner attribute add-attribute" ]
+            [ div [ class "planner attribute-add-button", onClick (AddElementShow <| AttributeKeyW Nothing) ]
+                [ i [ class "planner attribute-add-icon fas fa-plus" ] []
+                ]
+            ]
+        ]
 
 
 viewAttribute : Int -> Attribute -> Maybe ViewLoadState -> Maybe ContentKey -> Html Msg
 viewAttribute index att loading editing =
     let
-        patching =
-            loading /= Nothing
-
         key =
             AttributeKey index att
     in
@@ -769,7 +1043,7 @@ viewAttribute index att loading editing =
             let
                 shortinput =
                     input
-                        [ onInput (EditingAttributePart (AShort index))
+                        [ onInput <| (EditingElementPart << AttributeKeyW << Just << AShort)
                         , value att_.short
                         , class "planner attribute-short"
                         ]
@@ -777,7 +1051,7 @@ viewAttribute index att loading editing =
 
                 nameinput =
                     input
-                        [ onInput (EditingAttributePart (AName index))
+                        [ onInput <| (EditingElementPart << AttributeKeyW << Just << AName)
                         , value att_.name
                         , class "planner attribute-name"
                         ]
@@ -785,21 +1059,23 @@ viewAttribute index att loading editing =
 
                 descinput =
                     textarea
-                        [ onInput
-                            (EditingAttributePart (ADescription index))
+                        [ onInput <|
+                            (EditingElementPart << AttributeKeyW << Just << ADescription)
                         , class "planner attribute-desc"
                         ]
                         [ description ]
 
-                key_ =
-                    AttributeKey index att_
+                -- key_ =
+                --     AttributeKey index att_
+                {- onMouseOver <| HoverEvent key True
+                   , onMouseOut <| HoverEvent key False
+                   ,
+                -}
             in
             div
-                [ onMouseOver <| HoverEvent key True
-                , onMouseOut <| HoverEvent key False
-                , class "planner attribute editing"
+                [ class "planner attribute editing"
                 ]
-                [ Html.form [ onSubmit (ClickExpand key) ]
+                [ Html.form [ onSubmit CommitEdit ]
                     [ div [ class "planner attribute-editing-header" ]
                         [ shortinput
                         , nameinput
@@ -821,12 +1097,11 @@ viewAttribute index att loading editing =
 
         Nothing ->
             div
-                [ onMouseOver <| HoverEvent key True
-                , onMouseOut <| HoverEvent key False
-                , class "planner attribute draggable"
-                , id <| "att-" ++ String.fromInt index
-                , draggable "true"
-                , attribute "ondragstart" "drag(event)"
+                [ class "planner attribute draggable"
+
+                -- , id <| "att-" ++ String.fromInt index
+                -- , draggable "true"
+                -- , attribute "ondragstart" "drag(event)"
                 ]
                 [ div [ class "planner attribute-header" ]
                     [ div [ class "planner attribute-short-wrapper" ]
@@ -943,6 +1218,14 @@ viewGoal index goal patchState =
                    Html.nothing
            ]
 -}
+
+
+getToday : Cmd Msg
+getToday =
+    Task.perform (AlwaysMsg << Today) Date.today
+
+
+
 -- Http
 
 
@@ -954,20 +1237,20 @@ loadUser token =
         , tracker = Nothing
         , body = Http.emptyBody
         , headers = [ Http.header "token" token ]
-        , url = "http://localhost:5000/api/v3/users/me"
-        , expect = Http.expectJson LoadedUserContent decodeUserLoadState
+        , url = "http://188.165.149.226:5000/api/v3/users/me"
+        , expect = Http.expectJson (AlwaysMsg << LoadedUserContent) decodeUserLoadState
         }
 
 
-loadDays : String -> Cmd Msg
-loadDays token =
+loadDays : String -> ( Date, Date ) -> Cmd Msg
+loadDays token range =
     Http.request
         { method = "GET"
         , timeout = Nothing
         , tracker = Nothing
         , body = Http.emptyBody
         , headers = [ Http.header "token" token ]
-        , url = "http://localhost:5000/api/v3/users/me/days"
+        , url = "http://188.165.149.226:5000/api/v3/users/me/days"
         , expect = Http.expectJson LoadedDays Days.decodeDays
         }
 
@@ -978,34 +1261,23 @@ loadDays token =
 
 encodeAttribute : Attribute -> E.Value
 encodeAttribute attribute =
-    case attribute.description of
-        Just desc ->
-            E.object
-                [ ( "short", E.string attribute.short )
-                , ( "name", E.string attribute.name )
-                , ( "description", E.string desc )
-                ]
-
-        Nothing ->
-            E.object
-                [ ( "short", E.string attribute.short )
-                , ( "name", E.string attribute.name )
-                ]
+    let
+        desc =
+            Maybe.withDefault "" attribute.description
+    in
+    E.object
+        [ ( "short", E.string attribute.short )
+        , ( "name", E.string attribute.name )
+        , ( "description", E.string desc )
+        ]
 
 
 encodeGoal : Goal -> E.Value
 encodeGoal goal =
-    case goal.description of
-        Just desc ->
-            E.object
-                [ ( "name", E.string goal.name )
-                , ( "description", E.string desc )
-                ]
-
-        Nothing ->
-            E.object
-                [ ( "name", E.string goal.name )
-                ]
+    E.object
+        [ ( "name", E.string goal.name )
+        , ( "description", E.string (Maybe.withDefault "" goal.description) )
+        ]
 
 
 decodeUserLoadState : D.Decoder User
@@ -1025,9 +1297,9 @@ decodeAttribute =
         (D.maybe (D.field "description" D.string))
 
 
-decodeAttributeKey : D.Decoder ContentKey
+decodeAttributeKey : D.Decoder (Maybe ContentKey)
 decodeAttributeKey =
-    D.map (AttributeKey 0) decodeAttribute
+    D.map Just <| D.map (AttributeKey 0) decodeAttribute
 
 
 decodeGoal : D.Decoder Goal
@@ -1065,5 +1337,5 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ submitEditPort (\_ -> CommitEdit)
-        , loadedTokenPlanner LoadedToken
+        , loadedTokenPlanner (AlwaysMsg << LoadedToken)
         ]

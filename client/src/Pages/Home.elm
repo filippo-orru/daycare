@@ -23,7 +23,9 @@ view : Model -> List (Html Msg)
 view model =
     [ div [ class "home header" ]
         [ div [ class "home header-header-container" ]
-            [ h1 [ class "home header-header" ] [ text "daycare" ] ]
+            [ h1 [ class "home header-header" ] [ text "daycare" ]
+            , a [ class "home header-login-link", Route.href Route.App ] [ text "APP" ]
+            ]
         ]
     , div [ class "home body" ]
         [ div [ class "home hero hero-main" ]

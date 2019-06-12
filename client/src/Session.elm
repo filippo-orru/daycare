@@ -1,4 +1,4 @@
-module Session exposing (Session(..), cred, fromString, navKey)
+module Session exposing (Session(..), fromString, navKey, token)
 
 import Browser.Navigation as Nav
 
@@ -8,11 +8,11 @@ type Session
     | Guest Nav.Key
 
 
-cred : Session -> Maybe String
-cred session =
+token : Session -> Maybe String
+token session =
     case session of
-        LoggedIn key token ->
-            Just token
+        LoggedIn key token_ ->
+            Just token_
 
         Guest key ->
             Nothing

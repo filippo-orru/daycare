@@ -17,7 +17,7 @@ import Session exposing (Session)
 init : Session -> ( Model, Cmd Msg )
 init session =
     ( { session = session
-      , username = ""
+      , identifier = ""
       , password = ""
       , state = LoginStateIdle
       }
@@ -27,7 +27,7 @@ init session =
 
 type alias Model =
     { session : Session
-    , username : String
+    , identifier : String
     , password : String
     , state : LoadState
     }
@@ -59,7 +59,7 @@ view model =
                     span [ class "login error-text" ] [ text "Cannot reach Server" ]
 
                 LoginStateError (Http.BadStatus 401) ->
-                    span [ class "login error-text" ] [ text "Wrong username or password" ]
+                    span [ class "login error-text" ] [ text "Wrong identifier or password" ]
 
                 LoginStateError _ ->
                     span [ class "login error-text" ] [ text "An error occurred. Please retry." ]
@@ -75,8 +75,8 @@ viewLoginForm model appendix =
     Html.form [ class "login form", onSubmit UserLoginLoad ]
         [ h3 [ class "login header" ] [ text "LOGIN" ]
 
-        -- , label [ class "login username" ] [ text "Username:" ]
-        , input [ class "login username", placeholder "username", value model.username, onInput UpdateUsername, autofocus True, autocomplete True ] []
+        -- , label [ class "login identifier" ] [ text "identifier:" ]
+        , input [ class "login identifier", placeholder "username / email", value model.identifier, onInput UpdateIdentifier, autofocus True, autocomplete True ] []
 
         -- , label [ class "login password" ] [ text "Password:" ]
         , input [ class "login password", placeholder "password", value model.password, onInput UpdatePassword ] []
@@ -92,7 +92,7 @@ viewLoginForm model appendix =
 type Msg
     = UserLoginLoad
     | UserLoginLoaded (Result Http.Error String)
-    | UpdateUsername String
+    | UpdateIdentifier String
     | UpdatePassword String
 
 
@@ -118,8 +118,8 @@ update msg model =
         UserLoginLoaded (Err message) ->
             ( { model | state = LoginStateError message }, Cmd.none )
 
-        UpdateUsername u ->
-            ( { model | username = u }, Cmd.none )
+        UpdateIdentifier i ->
+            ( { model | identifier = i }, Cmd.none )
 
         UpdatePassword p ->
             ( { model | password = p }, Cmd.none )
@@ -134,7 +134,7 @@ update msg model =
 login : Model -> Cmd Msg
 login model =
     Http.post
-        { url = "http://localhost:5000/api/v3/login"
+        { url = "http://188.165.149.226:5000/api/v3/login"
         , body = Http.jsonBody (encodeUserLogin model)
         , expect = Http.expectJson UserLoginLoaded decodeUserLogin
         }
@@ -146,8 +146,16 @@ login model =
 
 encodeUserLogin : Model -> E.Value
 encodeUserLogin model =
+    let
+        key =
+            if String.contains "@" model.identifier then
+                "email"
+
+            else
+                "username"
+    in
     E.object
-        [ ( "username", E.string model.username )
+        [ ( key, E.string model.identifier )
         , ( "password", E.string model.password )
         ]
 

@@ -1,6 +1,7 @@
-module Days exposing (Date, Day, Days, LoadState(..), Model, Task, TaskState(..), TimeD, decodeDay, decodeDays, decodeState, decodeTask, decodeTime, updatePart)
+module Days exposing (Day, Days, LoadState(..), LoadStatee(..), Model, Task, TaskState(..), TimeD, decodeDate, decodeDay, decodeDays, decodeState, decodeTask, decodeTime, encodeDay, encodeTask, encodeTasks, updatePart, viewDay, viewDays)
 
 import Array exposing (Array)
+import Date exposing (Date)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Lazy exposing (lazy, lazy2, lazy3)
@@ -74,11 +75,51 @@ decodeDays =
 decodeDay : D.Decoder Day
 decodeDay =
     D.map5 Day
-        (D.field "date" D.string)
-        (D.field "date" D.string)
+        (D.field "date" decodeDate)
+        (D.field "date" decodeDate)
         (D.maybe <| D.field "description" D.string)
         (D.maybe <| D.field "attributes" <| D.list D.string)
-        (D.field "tasks" <| D.list decodeTask)
+        (D.field "tasks" <| D.array decodeTask)
+
+
+decodeDate : D.Decoder Date
+decodeDate =
+    D.string
+        |> D.andThen
+            (\datestr ->
+                let
+                    year =
+                        String.slice 0 4 datestr
+                            |> D.decodeString D.int
+
+                    month =
+                        (if String.startsWith "0" <| String.slice 4 6 datestr then
+                            String.slice 5 6 datestr
+
+                         else
+                            String.slice 4 6 datestr
+                        )
+                            |> D.decodeString D.int
+                            |> (\mr ->
+                                    case mr of
+                                        Ok m ->
+                                            Ok (Date.numberToMonth m)
+
+                                        Err _ ->
+                                            Err "failed to decode month"
+                               )
+
+                    day =
+                        String.slice 6 8 datestr
+                            |> D.decodeString D.int
+                in
+                case ( year, month, day ) of
+                    ( Ok yr, Ok mo, Ok da ) ->
+                        D.succeed (Date.fromCalendarDate yr mo da)
+
+                    _ ->
+                        D.fail "could not create date"
+            )
 
 
 decodeTask : D.Decoder Task
@@ -99,6 +140,9 @@ decodeState =
                     "completed" ->
                         D.succeed TSCompleted
 
+                    "75%" ->
+                        D.succeed TSP75
+
                     "50%" ->
                         D.succeed TSP50
 
@@ -109,7 +153,7 @@ decodeState =
                         D.succeed TSTodo
 
                     _ ->
-                        D.fail <| "Unknown state " ++ str
+                        D.fail <| "Unknown state: " ++ str
             )
 
 
@@ -131,12 +175,8 @@ type alias Day =
     , date : Date
     , description : Maybe String
     , attributes : Maybe (List String)
-    , tasks : List Task
+    , tasks : Array Task
     }
-
-
-type alias Date =
-    String
 
 
 type alias Task =
@@ -245,4 +285,42 @@ viewDay day patchState =
                 --         text ""
                 ]
             ]
+        ]
+
+
+encodeDay : Day -> E.Value
+encodeDay day =
+    E.object
+        [ ( "description", E.string (Maybe.withDefault "" day.description) )
+        , ( "tasks", encodeTasks day.tasks )
+        ]
+
+
+encodeTasks : Array Task -> E.Value
+encodeTasks tasks =
+    E.array encodeTask tasks
+
+
+encodeTask : Task -> E.Value
+encodeTask task =
+    E.object
+        [ ( "name", E.string task.name )
+        , ( "status"
+          , E.string <|
+                case task.state of
+                    TSCompleted ->
+                        "completed"
+
+                    TSTodo ->
+                        "todo"
+
+                    TSP75 ->
+                        "75%"
+
+                    TSP50 ->
+                        "50%"
+
+                    TSP25 ->
+                        "25%"
+          )
         ]

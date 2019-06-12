@@ -1,4 +1,4 @@
-from flask import Flask, jsonify as j, request, json, make_response as mr
+from flask import Flask, jsonify as j, request, json, make_response as mr, current_app
 from flask_cors import CORS
 from datetime import datetime
 
@@ -26,37 +26,54 @@ def index():
 
 @app.route(apipath + '/login', methods=['POST'])
 def login():
-    try:
+    body = request.get_json()
+
+    if not 'password' in body:
+        return hRes.BadRequest()
+
+    if 'email' in body:
+        key = 'email'
+    elif 'username' in body:
         key = 'username'
-        # request = request.get_json()
-        critical = [(key, str), ('password', str)]
-        value, password = fh.assertRequest(request, critical)
-    except KeyError:
-        try:
-            key = 'email'
-            critical = [(key, str), ('password', str)]
-            value, password = fh.assertRequest(request, critical)
-        except KeyError:
-            return hRes.BadRequest()
+    else:
+        return hRes.BadRequest()
+
+    value = body[key]
+    password = body['password']
 
     try:
         response = dba.login(key, value, password)
     except ValueError:
-        return hRes.Unauthorized()
-    except:
-        return hRes.InternalServer()
+        return hRes.make('Login failed. Invalid credentials', 401)
 
     return mr(j({'token': response}), 200)
 
 
-@app.route(apipath + '/users', methods=['POST'])
+@app.route(apipath + '/users', methods=['GET', 'POST'])
 def users():
-    critical = [('email', str), ('password', str)]
-    optional = [('username', str, True)]
+
+    if request.method == 'GET':
+        userOrError = fh.manageAuth('me', request)
+        if type(userOrError) == dict:
+            _user = userOrError
+            uID = _user['_id']
+        else:
+            return userOrError
+
+        if 'level' in _user:
+            if _user['level'] in ['admin', 'mod']:
+                users = dba.listUsers()
+                return mr(j(users), 200)
+
+        return hRes.Forbidden()
+
+    critical = [('email', fh.getSchema.emailRe),
+                ('password', fh.getSchema.passwordRe)]
+    optional = [('username', fh.getSchema.usernameRe)]
 
     try:
-        email, password, username = fh.assertRequest(request, critical,
-                                                     optional)
+        email, password, username = fh.assertRequestStrict(
+            request, critical, optional)
     except (KeyError, TypeError):
         return hRes.BadRequest()
 
@@ -64,18 +81,20 @@ def users():
         user = dba.addUser(*fh.cleanList(email, password, username))
     except ValueError:
         return hRes.Conflict()
-    except:
-        return hRes.InternalServer()
+    # except:
+    #     return hRes.InternalServer()
 
-    return mr(j(user), 201)  #, {'Content-Type': 'application/json'})
+    return mr(j(user), 201)
 
 
-# , 'PUT'])
 @app.route(apipath + '/users/<uID>', methods=itemMethods)
 def user(uID):
     userOrError = fh.manageAuth(uID, request)
     if type(userOrError) == dict:
-        _user = userOrError
+        (_user, userSearching) = (userOrError, None)
+        uID = _user['_id']
+    elif type(userOrError) == tuple:
+        (_user, userSearching) = userOrError
     else:
         return userOrError
 
@@ -84,27 +103,46 @@ def user(uID):
 
     elif request.method == 'PATCH':
         try:
-            validBody = fh.assertRequest(request, schema=fh.getSchema.user())
+            schema = fh.getSchema.userR()
+            schema.pop('token')
+
+            validBody = fh.assertRequestStrict(request, schema=schema)
         except KeyError:
-            return hRes.BadRequest()
+            return hRes.BadRequest(
+            )  # request does not match schema. -> Reject
+
+        if 'email' in validBody:
+            try:
+                if dba.getUserByKey('email', validBody['email']):
+                    return hRes.Conflict()  # email exists
+            except KeyError:
+                pass
+
+        if 'username' in validBody:
+            try:
+                if dba.getUserByKey('username', validBody['username']):
+                    return hRes.Conflict()  # uname exists
+            except KeyError:
+                pass
+
+        if 'level' in validBody and 'level' in _user:
+            if not (_user['level'] in ['admin', 'mod'] or userSearching):
+                return hRes.Forbidden()
 
         user = dict(_user)  # set newUser = oldUser
         user.update(validBody)  # update newUser with new key/value Pairs
 
         if user != _user:
-            try:
-                user = dba.setUserByKey(user, '_id')  # update in db
-            except:  # if dbError
-                return hRes.InternalServer()
+            # try:
+            user = dba.setUserByKey(user, '_id')  # update in db
+            # except:  # if dbError
+            #     return hRes.InternalServer()
 
         return mr(j(user), 200)  # respond with (not-) modified user
 
     elif request.method == 'DELETE':
-        try:
-            dba.deleteUser(uID)
-            return hRes.make('Successfully deleted user.', 200)
-        except:
-            return hRes.InternalServer()
+        dba.deleteUser(uID)
+        return hRes.make('Successfully deleted user.', 200)
 
 
 @app.route(apipath + '/users/<uID>/days', methods=collMethods)
@@ -127,21 +165,24 @@ def days(uID):
     except ValueError:
         return hRes.BadRequest()
     except KeyError:
-        return hRes.NotFound()
-    except:
-        return hRes.InternalServer()
+        print("returning empty days")
+        print(_user)
+        return mr(j([]), 200)
 
     if request.method == 'GET':
         return mr(j(_days), 200)
 
     elif request.method == 'POST':
         try:
-            fh.assertRequest(request, [('date', str)])  # body must have date
+            fh.assertRequestStrict(
+                request,
+                [('date', fh.getSchema.dateRe),
+                 ('owner', fh.getSchema.emailRe)])  # body must have date
         except KeyError:
             return hRes.BadRequest()
 
-        day = fh.assertRequest(
-            request, schema=fh.getSchema.day())  # filter out non-valid keys
+        day = fh.assertRequestStrict(
+            request, schema=fh.getSchema.dayR())  # filter out non-valid keys
 
         for _day in _days:  # todo: inefficient
             if day['date'] == _day['date']:
@@ -157,8 +198,6 @@ def days(uID):
             return hRes.Conflict()
         except ValueError:
             return hRes.BadRequest()
-        except:
-            return hRes.InternalServer()
 
         return mr(j(day), 201)
 
@@ -182,8 +221,8 @@ def day(uID, date):
 
     elif request.method == 'PATCH':
         try:
-            validBody = fh.assertRequest(request,
-                                         schema=fh.getSchema.dayPatch())
+            validBody = fh.assertRequestStrict(request,
+                                               schema=fh.getSchema.dayPatchR())
         except KeyError:
             return hRes.BadRequest()
 
@@ -191,55 +230,52 @@ def day(uID, date):
         day.update(validBody)
 
         if day != _day:
-            try:
-                dba.setDay(day)
-            except:
-                return hRes.InternalServer()
+            dba.setDay(day)
 
         return mr(j(day), 200)
 
     elif request.method == 'DELETE':
-        try:
-            dba.deleteDay(_day)
-            return hRes.make('Successfully deleted day.', 200)
-        except:
-            return hRes.InternalServer()
+        dba.deleteDay(_day)
+        return hRes.make('Successfully deleted day.', 200)
 
 
 @app.route(apipath + '/users/<uID>/activities', methods=collMethods)
 def activities(uID):
-    return fh.collection('activities', request, [('name', str)],
-                         fh.getSchema.activity(), mr, j, uID)
+    # return user()
+    return fh.collection('activities', request,
+                         [('name', fh.getSchema.nameRe)],
+                         fh.getSchema.activityR(), uID)
 
 
 @app.route(apipath + '/users/<uID>/activities/<name>', methods=itemMethods)
 def activity(uID, name):
-    return fh.item('activities', request, [('name', str)],
-                   fh.getSchema.activity(), mr, j, uID, name)
+    return fh.item('activities', request, fh.getSchema.activityR(), uID,
+                   'name', name)
 
 
 @app.route(apipath + '/users/<uID>/attributes', methods=collMethods)
 def attributes(uID):
-    return fh.collection('attributes', request, [('short', str)],
-                         fh.getSchema.attribute(), mr, j, uID)
+    return fh.collection('attributes', request,
+                         [('name', fh.getSchema.nameRe),
+                          ('short', fh.getSchema.attributeR()['short'])],
+                         fh.getSchema.attributeR(), uID)
 
 
-@app.route(apipath + '/users/<uID>/attributes/<short>', methods=itemMethods)
-def attribute(uID, short):
-    return fh.item('attributes', request, [('short', str)],
-                   fh.getSchema.attribute(), mr, j, uID, short)
+@app.route(apipath + '/users/<uID>/attributes/<name>', methods=itemMethods)
+def attribute(uID, name):
+    return fh.item('attributes', request, fh.getSchema.attributeR(), uID,
+                   'name', name)
 
 
 @app.route(apipath + '/users/<uID>/goals', methods=collMethods)
 def goals(uID):
-    return fh.collection('goals', request, [('name', str)],
-                         fh.getSchema.attribute(), mr, j, uID)
+    return fh.collection('goals', request, [('name', fh.getSchema.nameRe)],
+                         fh.getSchema.attributeR(), uID)
 
 
 @app.route(apipath + '/users/<uID>/goals/<name>', methods=itemMethods)
 def goal(uID, name):
-    return fh.item('goals', request, [('name', str)], fh.getSchema.goal(), mr,
-                   j, uID, name)
+    return fh.item('goals', request, fh.getSchema.goalR(), uID, 'name', name)
 
 
 @app.route(apipath + '/users/<uID>/settings', methods=['GET', 'PATCH'])
@@ -257,8 +293,8 @@ def settings(uID):
 
     elif request.method == 'PATCH':
         try:
-            validBody = fh.assertRequest(request,
-                                         schema=fh.getSchema.settings())
+            validBody = fh.assertRequestStrict(request,
+                                               schema=fh.getSchema.settingsR())
         except KeyError:
             return hRes.BadRequest()
 
@@ -267,13 +303,20 @@ def settings(uID):
 
         if settings != _settings:
             user['settings'] = settings
-            try:
-                dba.setUserByKey(user, '_id')
-            except:
-                return hRes.InternalServer()
+            dba.setUserByKey(user, '_id')
 
         return mr(j(settings), 200)
 
 
+# @app.errorhandler(500)
+# def internalServerError(e):
+#     return hRes.InternalServer()
+
+
+@app.errorhandler(400)
+def BadRequestError(e):
+    return hRes.BadRequest()
+
+
 if __name__ == "__main__":
-    app.run('0.0.0.0', '5000', False)
+    app.run('0.0.0.0', '5000', True)

@@ -1,14 +1,89 @@
+from flask import make_response as mr, jsonify as j
+
 from tools import getSchema
 from tools import getEmpty
 from tools import httpResponse
 from tools import htmlErrors
 import databaseApi as dba
+import re
+
+
+def assertRequestStrict(request,
+                        critical: list = [],
+                        optional: list = [],
+                        schema: dict = None):
+    '''
+    Example:
+    body = {
+        "username": "ffactory11",
+        "email": "ffactory11@outlook.com",
+        "password": "hahalol"
+    }
+    critical = [('email', r"[A-Z0-9]), ('password', r"[A-Z0-9])]
+    optional = [('username', r"[A-Z0-9]), ('optional', r"[0-9]")]
+    cleanBody = assertRequest(body, critical, optional)
+    if cleanBody:
+        e, p, u, o = cleanBody
+    '''
+    body = request.get_json()
+
+    filterItems = lambda x: \
+        body[x[0]] if x[0] in body and re.search(x[1], body[x[0]]) else None
+
+    # returns item value if key in body and type matches. Else None
+
+    # if len(body) < 1:
+    #     raise
+
+    if critical:
+        validItems = list(map(filterItems, critical))
+        if None in validItems:
+            raise KeyError('Not all critical items found')
+
+        validItems += map(filterItems, optional)
+
+    elif optional:
+        validItems = list(map(filterItems, optional))
+    elif schema:
+        body = assertBodyRecursiveStrict(body, schema)
+        if not body:
+            raise KeyError('No key in body matched schema.')
+        return body
+    else:
+        raise LookupError('Not enough arguments provided')
+
+    return validItems
+
+
+def assertBodyRecursiveStrict(body: dict, schema: dict):
+    _body = {}
+    print(body)
+    print(schema)
+    if not (type(schema) == dict and type(body) == dict):
+        raise TypeError('Body and/or schema of invalid type')
+
+    for key, value in schema.items():
+        if key in body:
+            if type(body[key]) == dict:
+                _body[key] = assertBodyRecursiveStrict(body[key],
+                                                       value)  # value == dict
+            elif type(body[key]) == list:
+                _body[key] = []
+                for item in body[key]:
+                    _body[key].append(assertBodyRecursiveStrict(
+                        item, value[0]))  # value == list[pattern]
+                _body[key] = cleanList(_body[key])
+            else:
+                # item = tryConvert(body[key])
+                if re.search(value, body[key]):  # value == pattern
+                    _body[key] = body[key]
+    return _body
 
 
 def assertRequest(request,
                   critical: list = [],
                   optional: list = [],
-                  schema=None):
+                  schema: object = None):
     '''
     Example:
     body = {
@@ -24,7 +99,8 @@ def assertRequest(request,
     '''
     body = request.get_json()
     # body = request
-    filterItems = lambda x: body[x[0]] if x[0] in body and x[1] == type(body[x[0]]) else None
+    filterItems = lambda x: body[x[0]] if x[0] in body and x[1] == type(body[x[
+        0]]) else None
     # returns item value if key in body and type matches. Else None
 
     # if len(body) < 1:
@@ -119,39 +195,52 @@ def clamp(n, smallest, largest):
 
 
 def manageAuth(uID, request):
-    # make own errors in htmlErrors.py and implement
+    '''
+    Searches database for user and returns appropriate http errors if not found etc.
+    '''
+
+    token = request.headers.get('token')
+
+    if uID == 'me':  # search by token
+        key = 'token'
+        value = token
+        response = httpResponse.Unauthorized()
+    else:  # search by id
+        key = '_id'
+        value = uID
+        response = httpResponse.NotFound()
+
     try:
-        token = request.headers.get('token')
+        user = dba.getUserByKey(key, value)
+        if user['token'] != token:  # user searching =/= user searched for
+            userSearching = dba.getUserByKey('token', token)
 
-        if uID == 'me':
-            key = 'token'
-            value = token
-            response = httpResponse.Unauthorized()
-        else:
-            key = '_id'
-            value = uID
-            response = httpResponse.NotFound()
+            if not 'level' in userSearching:
+                return httpResponse.Forbidden()
 
-        try:
-            user = dba.getUserByKey(key, value)
-            if user['token'] != token:
-                return httpResponse.Unauthorized()
-        except IndexError:
-            return response
-        except KeyError:
-            return httpResponse.Unauthorized()
-        except ValueError:
-            return httpResponse.BadRequest()
+            if userSearching['level'] in ['admin', 'mod']:
+                return (user, userSearching)  # userSearching is admin or mod
+            else:
+                return httpResponse.Forbidden()
+                # userSearching exists but insufficient privileges
 
-    except:
-        return httpResponse.InternalServer()
+    except IndexError:
+        return response
+    except KeyError:
+        return httpResponse.Unauthorized()
+    except ValueError:
+        return httpResponse.BadRequest()
+
     return user
 
 
-def collection(part, request, critical, schema, mr, j, uID):
+def collection(part, request, critical, schema, uID):
     userOrError = manageAuth(uID, request)
     if type(userOrError) == dict:
-        _user = userOrError
+        (_user, userSearching) = (userOrError, None)
+        uID = _user['_id']
+    elif type(userOrError) == tuple:
+        (_user, userSearching) = userOrError
     else:
         return userOrError
 
@@ -162,10 +251,9 @@ def collection(part, request, critical, schema, mr, j, uID):
     elif request.method == 'POST':
         try:
             assertRequest(request, critical)
+            item = assertRequestStrict(request, schema=schema)
         except KeyError:
             return httpResponse.BadRequest()
-
-        item = assertRequest(request, schema=schema)
 
         for _item in _collection:
             if _item[critical[0][0]].lower() == item[critical[0][0]].lower():
@@ -178,8 +266,6 @@ def collection(part, request, critical, schema, mr, j, uID):
             dba.setUserByKey(_user, '_id')
         except ValueError:
             return httpResponse.BadRequest()
-        except:
-            return httpResponse.InternalServer()
 
         return mr(j(_user[part][len(_user[part]) - 1]), 201)
 
@@ -189,13 +275,11 @@ def collection(part, request, critical, schema, mr, j, uID):
             dba.setUserByKey(_user, '_id')
         except ValueError:
             return httpResponse.BadRequest()
-        except:
-            return httpResponse.InternalServer()
 
         return httpResponse.make('Cleared collection successfully', 200)
 
 
-def item(part, request, critical, schema, mr, j, uID, partId):
+def item(part, request, schema, uID, identifier, partId):
     userOrError = manageAuth(uID, request)
     if type(userOrError) == dict:
         user = userOrError
@@ -206,7 +290,7 @@ def item(part, request, critical, schema, mr, j, uID, partId):
     _item = None
     i = 0
     for item in user[part]:
-        if item[critical[0][0]].lower() == partId.lower():
+        if item[identifier].lower() == partId.lower():
             _item = item
             break
         i += 1
@@ -219,7 +303,7 @@ def item(part, request, critical, schema, mr, j, uID, partId):
 
     elif request.method == 'PATCH':
         try:
-            validBody = assertRequest(request, schema=schema)
+            validBody = assertRequestStrict(request, schema=schema)
         except (KeyError, TypeError):
             return httpResponse.BadRequest()
 
@@ -253,4 +337,4 @@ def item(part, request, critical, schema, mr, j, uID, partId):
 
 
 if __name__ == "__main__":
-    pass
+    print(({"username": "filippo%+_|$orru@hotmail.com"}, getSchema.userR()))

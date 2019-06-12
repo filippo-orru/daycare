@@ -42,7 +42,7 @@ def logout(key, value, p):
 def authUser(key, value, p):
     try:
         result = getUserByKey(key, value, False)
-    except IndexError:
+    except KeyError:
         return False
 
     if argon2.verify(p, result['password']):  # pw correct
@@ -83,11 +83,11 @@ def addUser(email, pwd, uname=''):
 
     pwd = argon2.hash(pwd)
     _user = userC.defaultUser()
-    _user['email'] = email
-    _user['username'] = uname
+    _user['email'] = userC.validEmail(email)
+    _user['username'] = userC.validUsername(uname)
     _user['password'] = pwd
 
-    uID = db.insert_one('users', _user)
+    uID = db.insert_one('users', _user).inserted_id
 
     user = getUserByKey('_id', uID)
 
@@ -104,13 +104,31 @@ def getUsers(limit=50):
     # except
 
 
+def listUsers(limit=10000):
+    users = db.find('users', {},
+                    projection={
+                        "email": 1,
+                        "username": 1,
+                    },
+                    limit=limit)
+    # u = {"e": 1, "u": 2}
+
+    #users = list(map(lambda x: x.pop('_id'), users))
+    users = list(users)
+
+    return json.loads(dumps(users))
+
+
 def getUserByKey(key, value, popPw=True):
     if key == '_id':
         value = toObjectId(value)
     else:
         value = tryToObjectId(value)
 
-    user = db.find('users', {key: value})[0]
+    try:
+        user = db.find('users', {key: value})[0]
+    except IndexError:
+        raise KeyError('no user with that key/val')
 
     user['_id'] = fromObjectId(user['_id'])
 
@@ -229,5 +247,5 @@ if __name__ == "__main__":
             "state": "completed"
         }]
     }
-    addDay(day)
+    print(listUsers())
     pass

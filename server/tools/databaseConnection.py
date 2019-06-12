@@ -51,7 +51,13 @@ class DatabaseConnection():
     def insert_many(self, database, mdbInput):
         return self._db[database].insert_many(mdbInput)
 
-    def find(self, database, query, limit=1, offset=0, sort=None):
+    def find(self,
+             database,
+             query,
+             limit=1,
+             offset=0,
+             sort=None,
+             projection=None):
         '''
         Example: find('users', {"age": {"$gt": 5}}, 5, 1)
         Will find 5 users with age > 5, skipping the first one
@@ -59,10 +65,12 @@ class DatabaseConnection():
         if sort:
             sortField = sort[0]
             sortDir = ASCENDING if sort[1] == 1 else DESCENDING
-            return self._db[database].find(query).skip(offset).limit(
-                limit).sort(sortField, sortDir)
+            return self._db[database].find(
+                query,
+                projection).skip(offset).limit(limit).sort(sortField, sortDir)
         else:
-            return self._db[database].find(query).skip(offset).limit(limit)
+            return self._db[database].find(
+                query, projection).skip(offset).limit(limit)
 
     def update(self, database, query):
         '''
