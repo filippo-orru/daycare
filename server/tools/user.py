@@ -25,23 +25,22 @@ class User():
         self.token = _user['token']
 
 
-def defaultUser():
-    return {
-        'email': '',
-        'username': '',
-        'password': '',
-        'settings': {
-            'fullscreen': False,
-            'theme': 'light'
-        },
-        'goals': [],
-        'activities': [],
-        'attributes': [],
-        'categories': [],
-        'confirmed': False,
-        'level': 'user',
-        'token': ''
-    }
+defaultUser = {
+    'email': '',
+    'username': '',
+    'password': '',
+    'settings': {
+        'fullscreen': False,
+        'theme': 'light'
+    },
+    'goals': [],
+    'activities': [],
+    'attributes': [],
+    'categories': [],
+    'confirmed': False,
+    'level': 'user',
+    'token': ''
+}
 
 
 def validEmail(email: str):

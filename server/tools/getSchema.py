@@ -7,161 +7,89 @@ timezoneRe = r"^[+-](?:0[0-9]|[1][0-4]):(?:00|30|45)$"
 dateRe = r"^(20\d{2})(1[012]|0[1-9])(3[01]|[12][0-9]|0[1-9])$"
 datetimeRe = r"^(20\d{2})(1[012]|0[1-9])(3[01]|[12][0-9]|0[1-9])(?::(0\d|[01]\d|2[0-3])[0-5]\d)?$"
 
-
-def day():
-    return {
-        'owner': str,
-        'date': str,
-        'description': str,
-        'attributes': [str],
-        'tasks': [task()],
-    }
+settingsR = {
+    'fullscreen': r"^true|false$",
+    'theme': r"^dark|light$",
+    'timezone': timezoneRe
+}
+    
 
 
-def dayR():
-    return {
-        'owner': emailRe,
-        'date': dateRe,
-        'description': descriptionRe,
-        'attributes': [nameRe],
-        'tasks': [taskR()]
-    }
+goalR = {
+    'name': nameRe,
+    'description': descriptionRe,
+    'deadline': datetimeRe
+}
+    
+
+activityR = {
+    'name': nameRe,
+    'description': descriptionRe,
+    'category': nameRe,
+    'related_goals': [nameRe],
+    'productivity_level': r"^[0-9]|10$"
+}
+    
 
 
-def dayPatch():
-    return {'description': str, 'attributes': [str], 'tasks': [task()]}
+attributeR = {
+    'short': r"^[A-Z][a-z]?$",
+    'name': nameRe,
+    'description': descriptionRe}
+    
 
 
-def dayPatchR():
-    r = dayR()
-    r.pop('owner')
-    r.pop('date')
-    return r
+categoryR = {
+    'name': nameRe,
+    'description': descriptionRe,
+    'productivity_level': r"^[0-9]|10$",
+}
 
 
-def task():
-    return {  # yapf: disable
-        'name': str,
-        'state': str,
-        'important': bool,
-        'time': time()
-    }
+timeR = {
+    'pre': r"^30|([0-2][0-9])|[0-9]$",
+    'start': r"^(((0|1)[0-9])|(?:2[0-3]))[0-5][05]$",
+    'end': r"^(((0|1)[0-9])|(?:2[0-3]))[0-5][05]$",
+    'post': r"^30|([0-2][0-9])|[0-9]$"
+}
+    
+
+taskR = {  # yapf: disable
+    'name': nameRe,
+    'state': r"completed|todo",
+    'important': r"true|false",
+    'time': timeR
+}
+
+dayR = {
+    'owner': emailRe,
+    'date': dateRe,
+    'description': descriptionRe,
+    'attributes': [nameRe],
+    'tasks': [taskR]
+}
+    
 
 
-def taskR():
-    return {  # yapf: disable
-        'name': nameRe,
-        'state': r"completed|todo",
-        'important': r"true|false",
-        'time': timeR()
-    }
+dayPatchR = {
+    'description': descriptionRe,
+    'attributes': [nameRe],
+    'tasks': [taskR]
+}
+
+    
 
 
-def user():
-    return {
-        'email': str,
-        'username': str,
-        'password': passwordRe,
-        'settings': settings(),
-        'goals': [goal()],
-        'activities': [activity()],
-        'attributes': [attribute()],
-        'categories': [category()],
-        'token': str
-    }
+userR = {
+    'email': emailRe,
+    'username': usernameRe,
+    'settings': settingsR,
+    'goals': [goalR],
+    'activities': [activityR],
+    'attributes': [attributeR],
+    'categories': [categoryR],
+    'token': r"^.{32$"
+}
 
 
-def userR():
-    return {
-        'email': emailRe,
-        'username': usernameRe,
-        'settings': settingsR(),
-        'goals': [goalR()],
-        'activities': [activityR()],
-        'attributes': [attributeR()],
-        'categories': [categoryR()],
-        'token': r"^.{32}$"
-    }
-
-
-def settings():
-    return {'fullscreen': bool, 'theme': str, 'timezone': str}
-
-
-def settingsR():
-    return {
-        'fullscreen': r"^true|false$",
-        'theme': r"^dark|light$",
-        'timezone': timezoneRe
-    }
-
-
-def goal():
-    return {'name': str, 'description': str, 'deadline': str}
-
-
-def goalR():
-    return {
-        'name': nameRe,
-        'description': descriptionRe,
-        'deadline': datetimeRe
-    }
-
-
-def activity():
-    return {
-        'name': str,
-        'description': str,
-        'category': str,
-        'related_goals': [str],
-        'productivity_level': int,
-        'time': time(),
-        'autoedit': bool
-    }
-
-
-def activityR():
-    return {
-        'name': nameRe,
-        'description': descriptionRe,
-        'category': nameRe,
-        'related_goals': [nameRe],
-        'productivity_level': r"^[0-9]|10$"
-    }
-
-
-def attribute():
-    return {'short': str, 'name': str, 'description': str}
-
-
-def attributeR():
-    return {
-        'short': r"^[A-Z][a-z]?$",
-        'name': nameRe,
-        'description': descriptionRe
-    }
-
-
-def category():
-    return {'name': str, 'description': str, 'productivity_level': int}
-
-
-def categoryR():
-    return {
-        'name': nameRe,
-        'description': descriptionRe,
-        'productivity_level': r"^[0-9]|10$",
-    }
-
-
-def time():
-    return {'start': str, 'end': str, 'pre': int, 'post': int}
-
-
-def timeR():
-    return {
-        'pre': r"^30|([0-2][0-9])|[0-9]$",
-        'start': r"^(((0|1)[0-9])|(?:2[0-3]))[0-5][05]$",
-        'end': r"^(((0|1)[0-9])|(?:2[0-3]))[0-5][05]$",
-        'post': r"^30|([0-2][0-9])|[0-9]$"
-    }
+    

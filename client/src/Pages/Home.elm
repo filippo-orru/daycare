@@ -21,6 +21,14 @@ type Msg
 
 view : Model -> List (Html Msg)
 view model =
+    [ div [ class "home container" ]
+        [ a [ Route.href Route.App, class "home huge-header" ] [ text "preparing for the service" ]
+        ]
+    ]
+
+
+view2 : Model -> List (Html Msg)
+view2 model =
     [ div [ class "home header" ]
         [ div [ class "home header-header-container" ]
             [ h1 [ class "home header-header" ] [ text "daycare" ]

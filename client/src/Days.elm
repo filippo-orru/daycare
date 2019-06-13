@@ -124,11 +124,14 @@ decodeDate =
 
 decodeTask : D.Decoder Task
 decodeTask =
-    D.map4 Task
+    D.map2 Task
         (D.field "name" D.string)
         (D.field "name" D.string)
-        (D.field "state" decodeState)
-        (D.maybe <| D.field "time" decodeTime)
+
+
+
+-- (D.field "state" decodeState)
+-- (D.maybe <| D.field "time" decodeTime)
 
 
 decodeState : D.Decoder TaskState
@@ -182,8 +185,9 @@ type alias Day =
 type alias Task =
     { name_ : String
     , name : String
-    , state : TaskState
-    , time : Maybe TimeD
+
+    -- , state : TaskState
+    -- , time : Maybe TimeD
     }
 
 
@@ -304,23 +308,27 @@ encodeTasks tasks =
 encodeTask : Task -> E.Value
 encodeTask task =
     E.object
-        [ ( "name", E.string task.name )
-        , ( "status"
-          , E.string <|
-                case task.state of
-                    TSCompleted ->
-                        "completed"
+        [ ( "name", E.string task.name ) ]
 
-                    TSTodo ->
-                        "todo"
 
-                    TSP75 ->
-                        "75%"
 
-                    TSP50 ->
-                        "50%"
+{- , ( "status"
+     , E.string <|
+           case task.state of
+               TSCompleted ->
+                   "completed"
 
-                    TSP25 ->
-                        "25%"
-          )
-        ]
+               TSTodo ->
+                   "todo"
+
+               TSP75 ->
+                   "75%"
+
+               TSP50 ->
+                   "50%"
+
+               TSP25 ->
+                   "25%"
+     )
+   ]
+-}

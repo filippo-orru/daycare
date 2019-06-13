@@ -3,7 +3,8 @@ module Main exposing (main)
 import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
-import Html exposing (Html, button, div, form, input, li, text, ul)
+import Html exposing (Html, button, div, form, input, li, p, text, ul, a)
+import Html.Attributes exposing (class)
 import Http
 import Pages.Home as Home
 import Pages.Login as Login
@@ -44,7 +45,7 @@ init () url navkey =
 
 type Model
     = Home Home.Model
-    | Planner Planner.Model
+    | Planner Planner.StateModel
     | Login Login.Model
     | Redirect Session
     | NotFound Session
@@ -56,13 +57,18 @@ view model =
     let
         viewPage title toMsg body =
             { title = "daycare - " ++ title
-            , body = List.map (Html.map toMsg) [ div [] body ]
+            , body = List.map (Html.map toMsg) body
             }
 
         viewSimplePage title ctext =
             { title = title
             , body =
-                [ text ctext
+                [ div [ class "planner container" ]
+                    [ div [ class "planner box" ]
+                        [ p [ class "planner error-text" ] [ text ctext ]
+                        , a [ class "planner link-button", Route.href Route.Home ] [ text "Go Home" ]
+                        ]
+                    ]
                 ]
             }
     in
@@ -89,7 +95,7 @@ view model =
 type Msg
     = GotHomeMsg Home.Msg
     | GotLoginMsg Login.Msg
-    | GotPlannerMsg Planner.Msg
+    | GotPlannerMsg Planner.StateMsg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
 
@@ -161,7 +167,7 @@ changeRouteTo mayberoute model =
 toSession model =
     case model of
         Planner planner ->
-            planner.session
+            Planner.toSession planner
 
         Login login ->
             login.session

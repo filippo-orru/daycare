@@ -79,7 +79,7 @@ viewLoginForm model appendix =
         , input [ class "login identifier", placeholder "username / email", value model.identifier, onInput UpdateIdentifier, autofocus True, autocomplete True ] []
 
         -- , label [ class "login password" ] [ text "Password:" ]
-        , input [ class "login password", placeholder "password", value model.password, onInput UpdatePassword ] []
+        , input [ class "login password", placeholder "password", type_ "password", value model.password, onInput UpdatePassword ] []
         , button [ class "login submit", type_ "submit" ] [ text "Login" ]
         , div [ class "login appendix" ] [ appendix ]
         ]
@@ -134,7 +134,7 @@ update msg model =
 login : Model -> Cmd Msg
 login model =
     Http.post
-        { url = "http://188.165.149.226:5000/api/v3/login"
+        { url = "/api/v3/login"
         , body = Http.jsonBody (encodeUserLogin model)
         , expect = Http.expectJson UserLoginLoaded decodeUserLogin
         }
