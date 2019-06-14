@@ -1,4 +1,4 @@
-port module Pages.Login exposing (LoadState(..), Model, Msg(..), decodeUserLogin, encodeUserLogin, init, login, subscriptions, update, view, viewLoginForm)
+port module Pages.Login exposing (LoadState(..), Model, Msg(..), decodeUserLogin, encodeUserLogin, init, loginPost, subscriptions, update, view, viewLoginForm)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -19,7 +19,7 @@ init session =
     ( { session = session
       , identifier = ""
       , password = ""
-      , state = LoginStateIdle
+      , loadstate = LIdle
       }
     , Cmd.none
     )
@@ -29,15 +29,15 @@ type alias Model =
     { session : Session
     , identifier : String
     , password : String
-    , state : LoadState
+    , loadstate : LoadState
     }
 
 
 type LoadState
-    = LoginStateIdle
-    | LoginStateWait
-    | LoginStateError Http.Error
-    | LoginStateSuccess String
+    = LIdle
+    | LWait
+    | LError Http.Error
+    | LSuccess String
 
 
 
@@ -48,26 +48,28 @@ view : Model -> List (Html Msg)
 view model =
     let
         append =
-            case model.state of
-                LoginStateWait ->
+            case model.loadstate of
+                LWait ->
                     span [ class "login wait-text" ] [ text "..." ]
 
-                LoginStateSuccess _ ->
+                LSuccess _ ->
                     span [ class "login success-text" ] [ text "Success!" ]
 
-                LoginStateError Http.NetworkError ->
+                LError Http.NetworkError ->
                     span [ class "login error-text" ] [ text "Cannot reach Server" ]
 
-                LoginStateError (Http.BadStatus 401) ->
+                LError (Http.BadStatus 401) ->
                     span [ class "login error-text" ] [ text "Wrong identifier or password" ]
 
-                LoginStateError _ ->
+                LError _ ->
                     span [ class "login error-text" ] [ text "An error occurred. Please retry." ]
 
-                LoginStateIdle ->
+                _ ->
                     text ""
     in
-    [ div [ class "login container" ] [ viewLoginForm model append ] ]
+    [ div [ class "login container" ]
+        [ viewLoginForm model append ]
+    ]
 
 
 viewLoginForm : Model -> Html Msg -> Html Msg
@@ -94,13 +96,14 @@ type Msg
     | UserLoginLoaded (Result Http.Error String)
     | UpdateIdentifier String
     | UpdatePassword String
+    | UpdateEmail String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         UserLoginLoad ->
-            ( { model | state = LoginStateWait }, login model )
+            ( { model | loadstate = LWait }, loginPost model.identifier model.password )
 
         UserLoginLoaded (Ok token) ->
             let
@@ -108,21 +111,24 @@ update msg model =
                     Session.navKey model.session
             in
             if token /= "" then
-                ( { model | session = Session.fromString key (Just token) }
+                ( { model | session = Session.fromString key (Just token), loadstate = LSuccess token }
                 , Cmd.batch [ saveTokenLogin token, Route.replaceUrl key Route.App ]
                 )
 
             else
-                ( model, Cmd.none )
+                ( { model | loadstate = LError <| Http.BadBody "" }, Cmd.none )
 
-        UserLoginLoaded (Err message) ->
-            ( { model | state = LoginStateError message }, Cmd.none )
+        UserLoginLoaded (Err err) ->
+            ( { model | loadstate = LError err }, Cmd.none )
 
         UpdateIdentifier i ->
             ( { model | identifier = i }, Cmd.none )
 
         UpdatePassword p ->
             ( { model | password = p }, Cmd.none )
+
+        _ ->
+            ( model, Cmd.none )
 
 
 
@@ -131,11 +137,11 @@ update msg model =
 --HTTP
 
 
-login : Model -> Cmd Msg
-login model =
+loginPost : String -> String -> Cmd Msg
+loginPost identifier password =
     Http.post
         { url = "/api/v3/login"
-        , body = Http.jsonBody (encodeUserLogin model)
+        , body = Http.jsonBody (encodeUserLogin identifier password)
         , expect = Http.expectJson UserLoginLoaded decodeUserLogin
         }
 
@@ -144,19 +150,19 @@ login model =
 -- Json
 
 
-encodeUserLogin : Model -> E.Value
-encodeUserLogin model =
+encodeUserLogin : String -> String -> E.Value
+encodeUserLogin identifier password =
     let
         key =
-            if String.contains "@" model.identifier then
+            if String.contains "@" identifier then
                 "email"
 
             else
                 "username"
     in
     E.object
-        [ ( key, E.string model.identifier )
-        , ( "password", E.string model.password )
+        [ ( key, E.string identifier )
+        , ( "password", E.string password )
         ]
 
 

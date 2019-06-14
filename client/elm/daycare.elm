@@ -3,12 +3,13 @@ module Main exposing (main)
 import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
-import Html exposing (Html, button, div, form, input, li, p, text, ul, a)
+import Html exposing (Html, a, button, div, form, input, li, p, text, ul)
 import Html.Attributes exposing (class)
 import Http
 import Pages.Home as Home
 import Pages.Login as Login
 import Pages.Planner as Planner
+import Pages.Register as Register
 import Route
 import Session exposing (Session)
 import Url exposing (Url)
@@ -46,6 +47,7 @@ init () url navkey =
 type Model
     = Home Home.Model
     | Planner Planner.StateModel
+    | Register Register.Model
     | Login Login.Model
     | Redirect Session
     | NotFound Session
@@ -76,6 +78,9 @@ view model =
         Home home ->
             viewPage "Home" GotHomeMsg (Home.view home)
 
+        Register register ->
+            viewPage "Register" GotRegisterMsg (Register.view register)
+
         Login login ->
             viewPage "Login" GotLoginMsg (Login.view login)
 
@@ -94,6 +99,7 @@ view model =
 
 type Msg
     = GotHomeMsg Home.Msg
+    | GotRegisterMsg Register.Msg
     | GotLoginMsg Login.Msg
     | GotPlannerMsg Planner.StateMsg
     | ChangedUrl Url
@@ -156,6 +162,10 @@ changeRouteTo mayberoute model =
             Planner.init session
                 |> updateWith Planner GotPlannerMsg model
 
+        Just Route.Register ->
+            Register.init session
+                |> updateWith Register GotRegisterMsg model
+
         Just Route.Login ->
             Login.init session
                 |> updateWith Login GotLoginMsg model
@@ -164,10 +174,14 @@ changeRouteTo mayberoute model =
             ( Error session, Cmd.none )
 
 
+toSession : Model -> Session
 toSession model =
     case model of
         Planner planner ->
             Planner.toSession planner
+
+        Register register ->
+            register.session
 
         Login login ->
             login.session

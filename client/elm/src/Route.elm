@@ -12,6 +12,7 @@ type Route
     | Login
     | App
     | Error
+    | Register
 
 
 
@@ -24,8 +25,7 @@ parser =
         , Parser.map Login (s "login")
         , Parser.map App (s "app")
         , Parser.map Error (s "error")
-
-        -- , Parser.map Register (s "register")
+        , Parser.map Register (s "register")
         ]
 
 
@@ -69,5 +69,8 @@ routeToString page =
 
                 Error ->
                     [ "error" ]
+
+                Register ->
+                    [ "register" ]
     in
     "#/" ++ String.join "/" pieces
