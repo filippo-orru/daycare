@@ -433,24 +433,40 @@ li.planner.day-task {
     cursor: pointer;
 }
 
-i.planner.day-task.add-task {
+li.planner.day-task.add-task {
     display: inline-block;
-    padding: 6px;
-    margin: 4px;
+    box-sizing: border-box;
+    height: 18px;
+    width: 18px;
+    /* padding: ; */
+    /* margin: 4px; */
     cursor: pointer;
     border-radius: 50%;
     border: none;
     transition: box-shadow 0.2s;
+    /* padding-top: 100%; */
 }
 
-i.planner.day-task.add-task:hover {
+li.planner.day-task.add-task:hover {
     transition: box-shadow 0.2s;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+input.planner.add-task-input {
+    border:none;
+    padding: 0 4px;
+    outline: none;
 }
 
 li.planner.day-task:hover {
     border-color: rgba(0, 0, 0, 0.4);
     transition: border 0.2s;
+}
+
+li.planner.day-task.adding {
+    border-color: rgba(0, 0, 0, 0.7);
+    /* background-color: red; */
+    transition: border 0.1s;
 }
 
 /* PLANNER responsive */
@@ -583,16 +599,18 @@ h3.login.header {
 
 /* body {height: 100%;} */
 div.home.container {
+    box-sizing: border-box;
     height: 100vh;
     width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
     background-color: rgb(7, 7, 7);
+    padding: 48px;
 }
 
 a.home.huge-header {
-    font-weight: bold;
+    font-weight: 600;
     font-size: 50px;
     color: white;
     text-transform: uppercase;
