@@ -1,3 +1,5 @@
+Now kinda not but maybe available at https://daycare.ml/. It's really only my development server which now has a domain name. Stupid, I know. But I couldn't resist, you know?
+
 # daycare
 ## What?
 I'm working on making a webapp that will replace my handwritten todo-notebook.
