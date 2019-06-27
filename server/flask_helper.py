@@ -8,7 +8,69 @@ import databaseApi as dba
 import re
 
 
-def assertRequestStrict(request,
+def assertRequestStrictC(request, schema: dict):
+    '''
+    :shrug:
+    '''
+    body = request.get_json()
+
+    body = assertBodyRecursiveStrictC(body, schema)
+    if not body:
+        raise KeyError('No key in body matched schema.')
+    return body
+
+
+def assertBodyRecursiveStrictC(body: dict, schema: dict):
+    '''
+    schema = {
+        'key1': (pattern:re, required:bool),
+        'key2': { 'key3': (pattern, required)}
+        'key3': [ (pattern, required) ]
+    }
+    '''
+
+    newbody = {}
+    if not (type(schema) == dict and type(body) == dict):
+        raise TypeError('Body and/or schema of invalid type')
+
+    for schemakey, schemavalue in schema.items():
+        
+        pattern = schemavalue[0]
+        required = schemavalue[1]
+
+
+        if schemakey in body:
+            bodyvalue = body[schemakey]
+
+            if type(pattern) == dict:
+                if not type(bodyvalue) == dict:
+                    raise TypeError('Schema is dict but body isnt in ' + schemakey)
+                
+                newbody[schemakey] = assertBodyRecursiveStrictC(
+                    bodyvalue, pattern) # pattern == dict
+            
+            elif type(bodyvalue) == list and type(pattern) == list:
+                if not type(bodyvalue) == list:
+                    raise TypeError('Schema is list but body isnt in ' + schemakey)
+                
+                newbody[schemakey] = []
+                for item in bodyvalue:
+                    newbody[schemakey].append(assertBodyRecursiveStrictC(
+                        item, pattern[0]))  # pattern == list[pattern]
+                newbody[schemakey] = cleanList(newbody[schemakey])
+
+            else:
+                if re.search(pattern, bodyvalue):  # pattern == pattern
+                    newbody[schemakey] = bodyvalue
+                else:
+                    raise KeyError('Did not match pattern: "' + schemakey + '"')
+        
+        elif required:
+            raise KeyError('Missing required key: "' + schemakey + '"')
+        
+    return newbody
+
+def assertRequestStrict_(request,
                         critical: list = [],
                         optional: list = [],
                         schema: dict = None):
@@ -45,7 +107,7 @@ def assertRequestStrict(request,
     elif optional:
         validItems = list(map(filterItems, optional))
     elif schema:
-        body = assertBodyRecursiveStrict(body, schema)
+        body = assertBodyRecursiveStrict_(body, schema)
         if not body:
             raise KeyError('No key in body matched schema.')
         return body
@@ -55,7 +117,7 @@ def assertRequestStrict(request,
     return validItems
 
 
-def assertBodyRecursiveStrict(body: dict, schema: dict):
+def assertBodyRecursiveStrict_(body: dict, schema: dict):
     _body = {}
     print(body)
     print(schema)
@@ -65,12 +127,12 @@ def assertBodyRecursiveStrict(body: dict, schema: dict):
     for key, value in schema.items():
         if key in body:
             if type(body[key]) == dict:
-                _body[key] = assertBodyRecursiveStrict(body[key],
+                _body[key] = assertBodyRecursiveStrict_(body[key],
                                                        value)  # value == dict
             elif type(body[key]) == list:
                 _body[key] = []
                 for item in body[key]:
-                    _body[key].append(assertBodyRecursiveStrict(
+                    _body[key].append(assertBodyRecursiveStrict_(
                         item, value[0]))  # value == list[pattern]
                 _body[key] = cleanList(_body[key])
             else:
@@ -80,7 +142,7 @@ def assertBodyRecursiveStrict(body: dict, schema: dict):
     return _body
 
 
-def assertRequest(request,
+def assertRequest_(request,
                   critical: list = [],
                   optional: list = [],
                   schema: object = None):
@@ -116,7 +178,7 @@ def assertRequest(request,
     elif optional:
         validItems = list(map(filterItems, optional))
     elif schema:
-        body = assertBodyRecursive(body, schema)
+        body = assertBodyRecursive_(body, schema)
         if not body:
             raise KeyError('Empty body')
         return body
@@ -126,7 +188,7 @@ def assertRequest(request,
     return validItems
 
 
-def assertBodyRecursive(body, schema):
+def assertBodyRecursive_(body, schema):
     _body = {}
     if type(schema) == type:
         if type(body) == schema:
@@ -137,11 +199,11 @@ def assertBodyRecursive(body, schema):
     for key, value in schema.items():
         if key in body:
             if type(body[key]) == dict:
-                _body[key] = assertBodyRecursive(body[key], value)
+                _body[key] = assertBodyRecursive_(body[key], value)
             elif type(body[key]) == list:
                 _body[key] = []
                 for item in body[key]:
-                    _body[key].append(assertBodyRecursive(item, value[0]))
+                    _body[key].append(assertBodyRecursive_(item, value[0]))
                 _body[key] = cleanList(_body[key])
             else:
                 item = tryConvert(body[key])
@@ -234,7 +296,7 @@ def manageAuth(uID, request):
     return user
 
 
-def collection(part, request, critical, schema, uID):
+def collection(part, request, schema, uID):
     userOrError = manageAuth(uID, request)
     if type(userOrError) == dict:
         (_user, userSearching) = (userOrError, None)
@@ -250,14 +312,18 @@ def collection(part, request, critical, schema, uID):
 
     elif request.method == 'POST':
         try:
-            assertRequest(request, critical)
-            item = assertRequestStrict(request, schema=schema)
+            # assertRequest(request, critical)
+            item = assertRequestStrictC(request, schema)
         except KeyError:
             return httpResponse.BadRequest()
 
         for _item in _collection:
-            if _item[critical[0][0]].lower() == item[critical[0][0]].lower():
-                return httpResponse.Conflict()
+            for schemakey in schema.keys():
+                    if not schemakey[1]:
+                        continue
+                    else:
+                        if _item[schemakey[0]].lower() == item[schemakey[0]].lower():
+                            return httpResponse.Conflict()
 
         try:
 
@@ -303,7 +369,7 @@ def item(part, request, schema, uID, identifier, partId):
 
     elif request.method == 'PATCH':
         try:
-            validBody = assertRequestStrict(request, schema=schema)
+            validBody = assertRequestStrictC(request, schema)
         except (KeyError, TypeError):
             return httpResponse.BadRequest()
 
@@ -337,4 +403,15 @@ def item(part, request, schema, uID, identifier, partId):
 
 
 if __name__ == "__main__":
-    print(({"username": "filippo%+_|$orru@hotmail.com"}, getSchema.userR()))
+    body = {
+        "attributes": [], 
+        "date": "20190611",
+        "description": "",
+        "tasks": [
+        {
+            "name": "",
+            "state": "todo"
+        }
+        ]
+    }
+    print(assertBodyRecursiveStrictC(body, getSchema.dayCt))

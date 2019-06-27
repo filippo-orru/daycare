@@ -67,13 +67,13 @@ def users():
 
         return hRes.Forbidden()
 
-    critical = [('email', fh.getSchema.emailRe),
-                ('password', fh.getSchema.passwordRe)]
-    optional = [('username', fh.getSchema.usernameRe)]
+    # critical = [('email', fh.getSchema.emailRe),
+    #             ('password', fh.getSchema.passwordRe)]
+    # optional = [('username', fh.getSchema.usernameRe)]
 
     try:
-        email, password, username = fh.assertRequestStrict(
-            request, critical, optional)
+        email, password, username = fh.assertRequestStrictC(
+            request, fh.getSchema.userPostCt)
     except (KeyError, TypeError):
         return hRes.BadRequest()
 
@@ -103,10 +103,10 @@ def user(uID):
 
     elif request.method == 'PATCH':
         try:
-            schema = fh.getSchema.userR
+            schema = fh.getSchema.userCt
             schema.pop('token')
 
-            validBody = fh.assertRequestStrict(request, schema=schema)
+            validBody = fh.assertRequestStrictC(request, schema)
         except KeyError:
             return hRes.BadRequest(
             )  # request does not match schema. -> Reject
@@ -154,19 +154,25 @@ def days(uID):
     else:
         return userOrError
 
-    limit = request.headers.get('limit')
-    offset = request.headers.get('offset')
-    if limit and offset:
-        limit = fh.clamp(limit, 1, 500)
-        offset = fh.clamp(offset, 0, 9500)
+    limit, offset = None, None
+
+    try:
+        limit = fh.clamp(int(request.headers.get('limit')), 1, 500)
+    except:
+        pass
+
+    try:
+        offset = fh.clamp(int(request.headers.get('offset')), 0, 9500)
+    except:
+        pass
 
     try:
         _days = dba.getDays(uID, *fh.cleanList(limit, offset))
     except ValueError:
         return hRes.BadRequest()
     except KeyError:
-        print("returning empty days")
-        print(_user)
+        # print("returning empty days")
+        # print(_user)
         return mr(j([]), 200)
 
     if request.method == 'GET':
@@ -174,15 +180,14 @@ def days(uID):
 
     elif request.method == 'POST':
         try:
-            fh.assertRequestStrict(
-                request,
-                [('date', fh.getSchema.dateRe),
-                 ('owner', fh.getSchema.emailRe)])  # body must have date
+            # fh.assertRequestStrict( request, [('date', fh.getSchema.dateRe)])
+            #  ('owner', fh.getSchema.emailRe)])  # body must have date
+            day = fh.assertRequestStrictC(request, fh.getSchema.dayCt)
         except KeyError:
             return hRes.BadRequest()
 
-        day = fh.assertRequestStrict(
-            request, schema=fh.getSchema.dayR)  # filter out non-valid keys
+        # day = fh.assertRequestStrict(
+        #     request, schema=fh.getSchema.dayR)  # filter out non-valid keys
 
         for _day in _days:  # todo: inefficient
             if day['date'] == _day['date']:
@@ -221,8 +226,8 @@ def day(uID, date):
 
     elif request.method == 'PATCH':
         try:
-            validBody = fh.assertRequestStrict(request,
-                                               schema=fh.getSchema.dayPatchR)
+            validBody = fh.assertRequestStrictC(request,
+                                                fh.getSchema.dayCt)
         except KeyError:
             return hRes.BadRequest()
 
@@ -242,40 +247,34 @@ def day(uID, date):
 @app.route(apipath + '/users/<uID>/activities', methods=collMethods)
 def activities(uID):
     # return user()
-    return fh.collection('activities', request,
-                         [('name', fh.getSchema.nameRe)],
-                         fh.getSchema.activityR, uID)
+    return fh.collection('activities', request, fh.getSchema.activityCt, uID)
 
 
 @app.route(apipath + '/users/<uID>/activities/<name>', methods=itemMethods)
 def activity(uID, name):
-    return fh.item('activities', request, fh.getSchema.activityR, uID,
-                   'name', name)
+    return fh.item('activities', request, fh.getSchema.activityCt, uID, 'name',
+                   name)
 
 
 @app.route(apipath + '/users/<uID>/attributes', methods=collMethods)
 def attributes(uID):
-    return fh.collection('attributes', request,
-                         [('name', fh.getSchema.nameRe),
-                          ('short', fh.getSchema.attributeR['short'])],
-                         fh.getSchema.attributeR, uID)
+    return fh.collection('attributes', request, fh.getSchema.attributeCt, uID)
 
 
 @app.route(apipath + '/users/<uID>/attributes/<name>', methods=itemMethods)
 def attribute(uID, name):
-    return fh.item('attributes', request, fh.getSchema.attributeR, uID,
+    return fh.item('attributes', request, fh.getSchema.attributeCt, uID,
                    'name', name)
 
 
 @app.route(apipath + '/users/<uID>/goals', methods=collMethods)
 def goals(uID):
-    return fh.collection('goals', request, [('name', fh.getSchema.nameRe)],
-                         fh.getSchema.attributeR, uID)
+    return fh.collection('goals', request, fh.getSchema.attributeCt, uID)
 
 
 @app.route(apipath + '/users/<uID>/goals/<name>', methods=itemMethods)
 def goal(uID, name):
-    return fh.item('goals', request, fh.getSchema.goalR, uID, 'name', name)
+    return fh.item('goals', request, fh.getSchema.goalCt, uID, 'name', name)
 
 
 @app.route(apipath + '/users/<uID>/settings', methods=['GET', 'PATCH'])
@@ -293,8 +292,7 @@ def settings(uID):
 
     elif request.method == 'PATCH':
         try:
-            validBody = fh.assertRequestStrict(request,
-                                               schema=fh.getSchema.settingsR)
+            validBody = fh.assertRequestStrictC(request, fh.getSchema.settingsCt)
         except KeyError:
             return hRes.BadRequest()
 

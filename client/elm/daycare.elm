@@ -8,7 +8,9 @@ import Html.Attributes exposing (class)
 import Http
 import Pages.Home as Home
 import Pages.Login as Login
-import Pages.Planner as Planner
+import Pages.Planner.State as Planner
+import Pages.Planner.Types as Planner
+import Pages.Planner.View as Planner
 import Pages.Register as Register
 import Route
 import Session exposing (Session)

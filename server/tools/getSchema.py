@@ -7,89 +7,73 @@ timezoneRe = r"^[+-](?:0[0-9]|[1][0-4]):(?:00|30|45)$"
 dateRe = r"^(20\d{2})(1[012]|0[1-9])(3[01]|[12][0-9]|0[1-9])$"
 datetimeRe = r"^(20\d{2})(1[012]|0[1-9])(3[01]|[12][0-9]|0[1-9])(?::(0\d|[01]\d|2[0-3])[0-5]\d)?$"
 
-settingsR = {
-    'fullscreen': r"^true|false$",
-    'theme': r"^dark|light$",
-    'timezone': timezoneRe
+
+settingsCt = {
+    'fullscreen': (r"^true|false$", 0),
+    'theme': (r"^dark|light$", 0),
+    'timezone': (timezoneRe, 0)
+}
+
+goalCt = {
+    'name': (nameRe, 1),
+    'description': (descriptionRe, 0),
+    'deadline': (datetimeRe, 0)
+}
+
+activityCt = {
+    'name': (nameRe, 1),
+    'description': (descriptionRe, 0),
+    'category': (nameRe, 0),
+    'related_goals': ([nameRe], 0),
+    'productivity_level': (r"^[0-9]|10$", 0)
+}
+
+attributeCt = {
+    'short': (r"^[A-Z][a-z]?$", 0),
+    'name': (nameRe, 1),
+    'description': (descriptionRe, 0)
+}
+
+categoryCt = {
+    'name': (nameRe, 1),
+    'description': (descriptionRe,0),
+    'productivity_level': (r"^[0-9]|10$",0),
+}
+
+timeCt = {
+    'pre': (r"^30|([0-2][0-9])|[0-9]$", 0),
+    'start': (r"^(((0|1)[0-9])|(?:2[0-3]))[0-5][05]$", 1),
+    'end': (r"^(((0|1)[0-9])|(?:2[0-3]))[0-5][05]$", 1),
+    'post': (r"^30|([0-2][0-9])|[0-9]$",0)
+}
+
+taskCt = {
+    'name': (nameRe, 1),
+    'state': (r"completed|todo", 1),
+    'important': (r"true|false", 0),
+    'time': (timeCt, 0)
 }
     
-
-
-goalR = {
-    'name': nameRe,
-    'description': descriptionRe,
-    'deadline': datetimeRe
-}
-    
-
-activityR = {
-    'name': nameRe,
-    'description': descriptionRe,
-    'category': nameRe,
-    'related_goals': [nameRe],
-    'productivity_level': r"^[0-9]|10$"
-}
-    
-
-
-attributeR = {
-    'short': r"^[A-Z][a-z]?$",
-    'name': nameRe,
-    'description': descriptionRe}
-    
-
-
-categoryR = {
-    'name': nameRe,
-    'description': descriptionRe,
-    'productivity_level': r"^[0-9]|10$",
+dayCt = {
+    'date': (dateRe, 1),
+    'description': (descriptionRe, 0),
+    'attributes': ([nameRe], 0),
+    'tasks': ([taskCt], 0)
 }
 
-
-timeR = {
-    'pre': r"^30|([0-2][0-9])|[0-9]$",
-    'start': r"^(((0|1)[0-9])|(?:2[0-3]))[0-5][05]$",
-    'end': r"^(((0|1)[0-9])|(?:2[0-3]))[0-5][05]$",
-    'post': r"^30|([0-2][0-9])|[0-9]$"
-}
-    
-
-taskR = {  # yapf: disable
-    'name': nameRe,
-    'state': r"completed|todo",
-    'important': r"true|false",
-    'time': timeR
+userCt = {
+    'email': (emailRe, 0),
+    'username': (usernameRe, 0),
+    'settings': (settingsCt, 0),
+    'goals': ([goalCt], 0),
+    'activities': ([activityCt], 0),
+    'attributes': ([attributeCt], 0),
+    'categories': ([categoryCt], 0),
+    'token': (r"^.{32}$", 0)
 }
 
-dayR = {
-    'owner': emailRe,
-    'date': dateRe,
-    'description': descriptionRe,
-    'attributes': [nameRe],
-    'tasks': [taskR]
+userPostCt = {
+    'email': (emailRe, 1),
+    'username': (usernameRe, 0),
+    'password': (passwordRe, 1)
 }
-    
-
-
-dayPatchR = {
-    'description': descriptionRe,
-    'attributes': [nameRe],
-    'tasks': [taskR]
-}
-
-    
-
-
-userR = {
-    'email': emailRe,
-    'username': usernameRe,
-    'settings': settingsR,
-    'goals': [goalR],
-    'activities': [activityR],
-    'attributes': [attributeR],
-    'categories': [categoryR],
-    'token': r"^.{32$"
-}
-
-
-    

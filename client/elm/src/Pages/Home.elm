@@ -21,7 +21,11 @@ type Msg
 
 view : Model -> List (Html Msg)
 view model =
-    [ div [ class "home container" ]
+    [ div [ class "home header" ]
+        [ a [ class "home header-link", Route.href Route.Register, style "margin-right" "16px" ] [ text "register" ] --, style "left" "30px"
+        , a [ class "home header-link", Route.href Route.Login ] [ text "login" ]
+        ]
+    , div [ class "home container" ]
         [ a [ Route.href Route.App, class "home huge-header" ] [ text "preparing for the service" ]
         ]
     ]

@@ -44,6 +44,7 @@
 	<script>
 
 		function loadFromStorage() {
+			console.log('loading from storage');
 			let token = JSON.parse(localStorage.getItem('daycare-token'));
 			if (token !== null && token !== "") {
 				return token
@@ -67,8 +68,23 @@
 		}
 
 		function keydown(e, app) {
-			if (e.ctrlKey && e.keyCode == 13) {
-				app.ports.submitEditPort.send(null);
+			if ((e.keyCode == 10 || e.keyCode == 13) && e.ctrlKey) {
+				app.ports.ctrlEnterPort.send(null);
+			}
+		}
+
+		function sendTab() {
+			var event = new KeyBoardEvent('keydown', {
+				'view': window,
+				'bubbles': true,
+				'cancelable': true
+			});
+			var cb = document.querySelector('input[type=submit][name=btnK]');
+			var canceled = !cb.dispatchEvent(event);
+			if (canceled) {
+				// preventDefault was called and the event cancelled
+			} else {
+				// insert your event-logic here...
 			}
 		}
 
@@ -83,6 +99,13 @@
 						keydown(event, app);
 					});
 				}
+
+				list = document.getElementsByTagName("input");
+				for (let input of list) {
+					input.addEventListener("keydown", function () {
+						keydown(event, app);
+					});
+				}
 			});
 		});
 
@@ -93,6 +116,11 @@
 			localStorage.setItem('daycare-token', JSON.stringify(token));
 		});
 
+		app.ports.loadToken.subscribe(function () {
+			app.ports.loadedTokenLogin.send(loadFromStorage());
+			app.ports.loadedTokenPlanner.send(loadFromStorage());
+		});
+		
 		app.ports.loadedTokenLogin.send(loadFromStorage());
 		app.ports.loadedTokenPlanner.send(loadFromStorage());
 

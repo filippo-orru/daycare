@@ -78,7 +78,7 @@ viewLoginForm model appendix =
         [ h3 [ class "login header" ] [ text "LOGIN" ]
 
         -- , label [ class "login identifier" ] [ text "identifier:" ]
-        , input [ class "login identifier", placeholder "username / email", value model.identifier, onInput UpdateIdentifier, autofocus True, autocomplete True ] []
+        , input [ class "login identifier", placeholder "username / email", type_ "email", value model.identifier, onInput UpdateIdentifier, autofocus True, autocomplete True ] []
 
         -- , label [ class "login password" ] [ text "Password:" ]
         , input [ class "login password", placeholder "password", type_ "password", value model.password, onInput UpdatePassword ] []

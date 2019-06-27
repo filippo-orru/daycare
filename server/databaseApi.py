@@ -82,7 +82,7 @@ def addUser(email, pwd, uname=''):
         raise ValueError('Username already exists')
 
     pwd = argon2.hash(pwd)
-    _user = userC.defaultUser()
+    _user = userC.defaultUser
     _user['email'] = userC.validEmail(email)
     _user['username'] = userC.validUsername(uname)
     _user['password'] = pwd

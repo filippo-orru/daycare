@@ -1,1 +1,1 @@
-cd client && npx light-server -s static -p 8000 -w "**/*.elm # elm make elm/daycare.elm --output=static/main.js # reload" -w "**/*.css # # reloadcss" -x http://localhost:5000/ --proxypath "/api"
+cd client/elm && npx light-server -s ../static -p 8000 -w "**/*.elm # elm make daycare.elm --output=../static/main.js # reload" -w "../static/*.css # # reloadcss" -x http://localhost:5000/ --proxypath "/api"
