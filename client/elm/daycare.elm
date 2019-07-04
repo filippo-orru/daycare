@@ -4,7 +4,7 @@ import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import Html exposing (Html, a, button, div, form, input, li, p, text, ul)
-import Html.Attributes exposing (class)
+import Html.Attributes exposing (class, style)
 import Http
 import Pages.Home as Home
 import Pages.Login as Login
@@ -59,15 +59,22 @@ type Model
 view : Model -> Browser.Document Msg
 view model =
     let
-        viewPage title toMsg body =
+        viewPage : String -> String -> (a -> Msg) -> List (Html a) -> Browser.Document Msg
+        viewPage title css toMsg body =
             { title = "daycare - " ++ title
-            , body = List.map (Html.map toMsg) body
+            , body =
+                [ Html.node "style" [] [ text <| "@import url(\"style/" ++ String.toLower css ++ "\"); " ] ]
+                    ++ List.map (Html.map toMsg) body
+
+            -- ++ [ Html.node "style" [] [ text resetLoading ] ]
             }
 
+        viewSimplePage : String -> String -> Browser.Document Msg
         viewSimplePage title ctext =
             { title = title
             , body =
-                [ div [ class "planner container" ]
+                [ Html.node "style" [] [ text <| "@import url(\"style/reset.css\");" ]
+                , div [ class "planner container" ]
                     [ div [ class "planner box" ]
                         [ p [ class "planner error-text" ] [ text ctext ]
                         , a [ class "planner link-button", Route.href Route.Home ] [ text "Go Home" ]
@@ -78,16 +85,16 @@ view model =
     in
     case model of
         Home home ->
-            viewPage "Home" GotHomeMsg (Home.view home)
+            viewPage "Home" "home.css" GotHomeMsg (Home.view home)
 
         Register register ->
-            viewPage "Register" GotRegisterMsg (Register.view register)
+            viewPage "Register" "login.css" GotRegisterMsg (Register.view register)
 
         Login login ->
-            viewPage "Login" GotLoginMsg (Login.view login)
+            viewPage "Login" "login.css" GotLoginMsg (Login.view login)
 
         Planner planner ->
-            viewPage "Planner" GotPlannerMsg (Planner.view planner)
+            viewPage "Planner" "planner.css" GotPlannerMsg (Planner.view planner)
 
         Error error ->
             viewSimplePage "Error" <| "An error occurred.  Model:   " ++ Debug.toString error
@@ -114,6 +121,10 @@ update msg model =
         ( GotLoginMsg subMsg, Login login ) ->
             Login.update subMsg login
                 |> updateWith Login GotLoginMsg model
+
+        ( GotRegisterMsg subMsg, Register register ) ->
+            Register.update subMsg register
+                |> updateWith Register GotRegisterMsg model
 
         ( GotPlannerMsg subMsg, Planner planner ) ->
             Planner.update subMsg planner

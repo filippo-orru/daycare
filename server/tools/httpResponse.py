@@ -1,20 +1,19 @@
 from flask import jsonify as j, make_response as mr
 
 
-def make(msg: str, code: int):
-    return mr(j({"message": msg}), code)
+def make(msg: str, code: int, hints: list = None):
+    if hints:
+        return mr(j({"message": msg, "hints": hints}), code)
+    else:
+        return mr(j({"message": msg}), code)
 
 
 def NotModified():
     return make("Not modified.", 309)
 
 
-def BadRequest(invalid_fields=[]):
-    text = ""
-    if invalid_fields != []:
-        text = ". invalid fields: " + str(invalid_fields)
-
-    return make('Bad Request. Check parameters' + text, 400)
+def BadRequest(hints: list = None):
+    return make('Bad Request. Check parameters', 400, hints)
 
 
 def Unauthorized():

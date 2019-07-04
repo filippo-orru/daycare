@@ -7,6 +7,89 @@ from tools import htmlErrors
 import databaseApi as dba
 import re
 
+def assertRequestStrictCH(request, schema: dict):
+    '''
+    :shrug:
+    '''
+    body = request.get_json()
+
+    body, hints, fatal = assertBodyRecursiveStrictCH(body, schema)
+
+    # if not body:
+    #     raise KeyError('No key in body matched schema.')
+    
+    return (body, hints, fatal)
+
+
+def assertBodyRecursiveStrictCH(body: dict, schema: dict):
+    '''
+    schema = {
+        'key1': (pattern:re, required:bool),
+        'key2': { 'key3': (pattern, required)}
+        'key3': [ (pattern, required) ]
+    }
+    '''
+
+    newbody = {}
+
+    hints = []
+    fatal = 0
+
+    if not (type(schema) == dict and type(body) == dict):
+        hints.append('Body must be a dict.')
+        fatal += 1
+
+    for schemakey, schemavalue in schema.items():
+        
+        pattern = schemavalue[0]
+        required = schemavalue[1]
+
+
+        if schemakey in body:
+            bodyvalue = body[schemakey]
+
+            if type(pattern) == dict:
+                if not type(bodyvalue) == dict:
+                    hints.append(schemakey + ' must be a dict.')
+                    fatal += 1
+                
+                newbody_, hints_, fatal_ = assertBodyRecursiveStrictC(
+                    bodyvalue, pattern) # pattern == dict
+                
+                newbody[schemakey] = newbody_
+                hints += hints_
+                fatal += fatal_
+            
+            elif type(pattern) == list:
+                if not type(bodyvalue) == list:
+                    hints.append(schemakey + ' must be a list.')
+                    fatal += 1
+                
+                newbody[schemakey] = []
+                for item in bodyvalue:
+
+                    newbody_, hints_, fatal_ = assertBodyRecursiveStrictC(item, pattern[0])
+
+                    newbody[schemakey].append(newbody_)
+                    hints += hints_
+                    fatal += fatal_
+
+                newbody[schemakey] = cleanList(newbody[schemakey])
+
+            else:
+                if re.search(pattern, bodyvalue):  # pattern == pattern
+                    newbody[schemakey] = bodyvalue
+                
+                else:
+                    hints.append(schemakey + ' must match regex: ' + pattern + '.')
+                    fatal += 1
+        
+        elif required:
+            hints.append(schemakey + ' is required but missing.')
+            fatal += 1
+        
+    return [ newbody, hints, (fatal > 0) ]
+
 
 def assertRequestStrictC(request, schema: dict):
     '''
@@ -44,14 +127,14 @@ def assertBodyRecursiveStrictC(body: dict, schema: dict):
 
             if type(pattern) == dict:
                 if not type(bodyvalue) == dict:
-                    raise TypeError('Schema is dict but body isnt in ' + schemakey)
+                    raise TypeError(schemakey)
                 
                 newbody[schemakey] = assertBodyRecursiveStrictC(
                     bodyvalue, pattern) # pattern == dict
             
             elif type(bodyvalue) == list and type(pattern) == list:
                 if not type(bodyvalue) == list:
-                    raise TypeError('Schema is list but body isnt in ' + schemakey)
+                    raise TypeError(schemakey)
                 
                 newbody[schemakey] = []
                 for item in bodyvalue:
@@ -63,10 +146,10 @@ def assertBodyRecursiveStrictC(body: dict, schema: dict):
                 if re.search(pattern, bodyvalue):  # pattern == pattern
                     newbody[schemakey] = bodyvalue
                 else:
-                    raise KeyError('Did not match pattern: "' + schemakey + '"')
+                    raise KeyError(schemakey)
         
         elif required:
-            raise KeyError('Missing required key: "' + schemakey + '"')
+            raise KeyError()
         
     return newbody
 
@@ -267,10 +350,17 @@ def manageAuth(uID, request):
         key = 'token'
         value = token
         response = httpResponse.Unauthorized()
+
+        if not re.search(getSchema.tokenRe, value): # token < 50 chars
+            return response
+
     else:  # search by id
         key = '_id'
         value = uID
         response = httpResponse.NotFound()
+
+    if value in ['', None]:
+        return response
 
     try:
         user = dba.getUserByKey(key, value)

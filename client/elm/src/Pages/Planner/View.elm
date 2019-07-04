@@ -1,6 +1,7 @@
 module Pages.Planner.View exposing (view, viewAttribute, viewAttributes, viewDay, viewDays, viewGoal, viewGoals, viewResponseHttpError, viewSidebar, viewSyncIndicator, viewTask, viewTasks)
 
 import Array exposing (Array)
+import Browser.Navigation as Nav
 import Date exposing (Date)
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -12,6 +13,13 @@ import Json.Decode as D
 import Json.Encode as E
 import Pages.Planner.Types as Model exposing (..)
 import Route
+import Svg as Svg
+import Svg.Attributes as Svg
+
+
+
+-- implement error message when updating days and receiving error -> spawn/dismiss, stack notification/s
+-- implement flask return messages -> missing xy // xy has bad format
 
 
 view : StateModel -> List (Html StateMsg)
@@ -43,19 +51,47 @@ view model_ =
 
                             Just (Ok _) ->
                                 ( "✓", " green" )
+
+                    viewUserStatus =
+                        viewElementStatus model.user
+
+                    viewDaysStatus =
+                        viewElementStatus model.days
+
+                    errorOccurred =
+                        case ( model.days, model.user ) of
+                            ( _, Just (Err _) ) ->
+                                True
+
+                            ( Just (Err _), _ ) ->
+                                True
+
+                            _ ->
+                                False
+
+                    appendix =
+                        if errorOccurred then
+                            div [ class "error-buttons-wrapper" ]
+                                [ a [ class "reload-button", Route.href Route.App ] [ text "Reload" ]
+                                , button [ class "reload-button", onClick <| LoggedinMsg <| LogoutL ] [ text "Log out" ]
+                                ]
+
+                        else
+                            text ""
                   in
                   div [ class "planner box" ]
-                    [ loading ( "Loading User..." ++ (Tuple.first <| viewElementStatus model.user), Tuple.second <| viewElementStatus model.user )
-                    , loading ( "Loading Days..." ++ (Tuple.first <| viewElementStatus model.days), Tuple.second <| viewElementStatus model.days )
+                    [ loading ( "Loading User..." ++ (Tuple.first <| viewUserStatus), Tuple.second <| viewUserStatus )
+                    , loading ( "Loading Days..." ++ (Tuple.first <| viewDaysStatus), Tuple.second <| viewDaysStatus )
+                    , appendix
                     ]
                 ]
             ]
 
         Loaded model ->
             List.map (Html.map LoadedMsg)
-                [ div [ class "planner header" ] [ text model.user.email ]
+                [ viewOverlay model.partVis
                 , div [ class "planner wrapper" ]
-                    [ viewSidebar model.viewState model.user
+                    [ viewSidebar model.viewState model.partVis model.user
                     , div [ class "planner planner-body" ]
                         [ viewDays model.days model.viewState
                         ]
@@ -63,12 +99,20 @@ view model_ =
                 ]
 
 
-viewSidebar : ViewState -> User -> Html LoadedMsg
-viewSidebar viewState user =
+viewSidebar : ViewState -> PartVisibility -> User -> Html LoadedMsg
+viewSidebar viewState partVis user =
+    let
+        tglBtnTxt =
+            if partVis.sidebar then
+                "<"
+
+            else
+                ">"
+    in
     div
         [ class <|
             "planner sidebar-wrapper"
-                ++ (if viewState.sidebarExpanded then
+                ++ (if partVis.sidebar then
                         " show"
 
                     else
@@ -77,7 +121,10 @@ viewSidebar viewState user =
         ]
         [ div [ class "planner sidebar" ]
             [ div [ class "planner sidebar-header noselect" ]
-                [ i [ class "fas fa-user-circle", title user.email ] []
+                [ div [ class "planner header" ] [ text user.email ]
+                , div [ class "sidebar-header-icon", onClick (ShowSettings SettingsOverview) ]
+                    [ i [ class "fas fa-cog", title "Settings" ] []
+                    ]
                 , h2 [ class "planner sidebar-header-text" ] [ text "daycare" ]
                 , viewSyncIndicator viewState.loading
                 ]
@@ -86,14 +133,66 @@ viewSidebar viewState user =
                 [ -- text ("email: " ++ user.email)
                   viewAttributes user viewState
                 ]
-            , button [ class "planner sidebar-expand", onClick ToggleSidebar ] [ text ">" ]
+            , button [ class "planner sidebar-expand", onClick ToggleSidebar ] [ text tglBtnTxt ]
             ]
         ]
 
 
+viewDialog : List (Html LoadedMsg) -> Html LoadedMsg
+viewDialog dcont =
+    div [ class "fullscreen-overlay darken", onClick HideSettings ]
+        [ div [ class "center-dialog", onClick_StopP NoOp ]
+            dcont
+        ]
+
+
+viewDialogButton : String -> String -> msg -> Html msg
+viewDialogButton icon txt msg =
+    button [ class "dialog-button", onClick_StopP msg ]
+        (if icon == "" then
+            [ span [ class "dialog-button-text" ] [ text txt ] ]
+
+         else
+            [ i [ class <| "dialog-button-icon " ++ icon ] []
+            , span [ class "dialog-button-text" ] [ text txt ]
+            ]
+        )
+
+
+viewOverlay : PartVisibility -> Html LoadedMsg
+viewOverlay partVis =
+    if partVis.settingsOverlay == Just SettingsOverview then
+        viewDialog
+            [ viewDialogButton "fas fa-user-cog" "Account Settings" (ShowSettings SettingsAccount)
+            , viewDialogButton "fas fa-cog" "Settings" (ShowSettings SettingsSettings)
+            , viewDialogButton "fas fa-sign-out-alt" "Logout" Logout
+            ]
+
+    else if partVis.settingsOverlay == Just SettingsAccount then
+        viewDialog
+            [ input [ class "dialog-input", placeholder "Change username" ] []
+            , viewDialogButton "arrow-circle-left" "Go back" (ShowSettings SettingsOverview)
+            ]
+
+    else if partVis.settingsOverlay == Just SettingsSettings then
+        viewDialog
+            [ label []
+                [ text "Theme"
+                , select [ class "dialog-selector" ]
+                    [ option [] [ text "light" ]
+                    , option [] [ text "dark" ]
+                    ]
+                ]
+            , viewDialogButton "arrow-circle-left" "Go back" (ShowSettings SettingsOverview)
+            ]
+
+    else
+        div [ class "fullscreen-overlay darken hidden" ] []
+
+
 viewSyncIndicator : Maybe ViewLoadState -> Html LoadedMsg
 viewSyncIndicator loading =
-    div [ class "planner sync-indicator" ]
+    div [ class "sidebar-header-icon", style "margin-left" "auto" ]
         [ case loading of
             Just ViewLLoading ->
                 i
@@ -168,7 +267,8 @@ viewDay viewState index day_ =
                 viewDefaultDesc =
                     div [ class "planner day-description-wrapper", onClick (EditStart <| DayPartKey index <| DDescription emptyDesc) ]
                         [ p [ class <| "planner day-description" ++ descClassApp ] [ text textDesc ]
-                        , i [ class "fas fa-pen" ] []
+
+                        -- , i [ class "fas fa-pen" ] []
                         ]
 
                 viewDescription =
@@ -186,8 +286,10 @@ viewDay viewState index day_ =
                             viewDefaultDesc
 
                 date =
-                    day.date
-                        |> Date.format "dd.MM.YYYY"
+                    Date.format "dd.MM.YYYY" day.date
+
+                weekday =
+                    Date.format "EEEE" day.date
 
                 adding =
                     case viewState.adding of
@@ -209,24 +311,31 @@ viewDay viewState index day_ =
                         _ ->
                             Nothing
             in
-            div [ class " planner day" ]
+            div [ class "planner day" ]
                 [ div
-                    [ class "planner day-header noselect" ]
-                    [ h4 [ class "planner day-date" ] [ text date ]
+                    [ class "planner day-header" ]
+                    [ h4 [ class "planner day-date weekday noselect" ] [ text <| weekday ++ ", " ]
+                    , h4 [ class "planner day-date noselect" ] [ text date ]
                     , viewDescription
                     ]
                 , div [ class "planner day-body" ]
-                    [ viewTasks index day adding editing ]
+                    [ viewTasks index day adding editing
+                    , viewTimeline day
+                    ]
                 ]
 
         Nothing ->
             let
                 date =
                     Date.format "dd.MM.YYYY" day_.date
+
+                weekday =
+                    Date.format "EEEE" day_.date
             in
             div [ class "planner day nocontent", onClick (AddDay index day_.date) ]
                 [ div [ class "planner day-header" ]
-                    [ h4 [ class "planner day-date" ] [ text date ]
+                    [ h4 [ class "planner day-date weekday noselect" ] [ text <| weekday ++ ", " ]
+                    , h4 [ class "planner day-date noselect" ] [ text date ]
                     ]
                 , text "click to add day"
                 ]
@@ -258,6 +367,86 @@ viewTasks index day adding editing =
 --    ]
 
 
+viewTimeline : Day -> Html LoadedMsg
+viewTimeline day =
+    let
+        day_start =
+            8.0
+
+        day_end =
+            19.5
+
+        width =
+            300
+
+        height =
+            48
+
+        viewTaskBox : Float -> Float -> String -> Html LoadedMsg
+        viewTaskBox start end name =
+            let
+                twidth =
+                    (end - start) / (day_end - day_start) * width
+
+                tx =
+                    (start - day_start) / (day_end - day_start) * width
+            in
+            Svg.g
+                []
+                [ Svg.rect
+                    [ Svg.width (String.fromFloat <| twidth)
+                    , Svg.height (String.fromInt height)
+                    , Svg.x (String.fromFloat <| tx)
+                    , Svg.fill "lightblue"
+                    , Svg.stroke "grey"
+                    , Svg.strokeWidth "1"
+                    ]
+                    []
+                , Svg.text_
+                    [ Svg.x (String.fromFloat <| tx + (twidth / 2))
+                    , Svg.y (String.fromFloat <| height / 2)
+                    , Svg.textAnchor "middle"
+                    , Svg.fill "black"
+                    ]
+                    [ Svg.text name ]
+                ]
+
+        viewTaskBoxMaybe : Task -> Html LoadedMsg
+        viewTaskBoxMaybe task =
+            case task.time of
+                Nothing ->
+                    Svg.g [] []
+
+                Just time ->
+                    viewTaskBox time.start time.end task.name
+
+        _ =
+            Debug.log "tasks" day.tasks
+    in
+    Svg.svg
+        [ Svg.width (String.fromInt <| width + 5)
+        , Svg.height (String.fromInt <| height + 2)
+        , Svg.viewBox <| "0 0 " ++ (String.fromInt <| width + 5) ++ " " ++ (String.fromInt <| height + 2)
+        ]
+        [ Svg.g
+            []
+            (Array.map viewTaskBoxMaybe (Array.filter (\t -> t.time /= Nothing) day.tasks)
+                |> Array.toList
+            )
+        , Svg.rect
+            [ Svg.width (String.fromInt width)
+            , Svg.height (String.fromInt height)
+            , Svg.x "1"
+            , Svg.y "1"
+            , Svg.rx "4"
+            , Svg.strokeWidth "1.5"
+            , Svg.stroke "black"
+            , Svg.fill "transparent"
+            ]
+            []
+        ]
+
+
 viewTask : Int -> Maybe ContentKey -> Int -> Task -> Html LoadedMsg
 viewTask dayindex maybeediting taskindex task =
     let
@@ -279,12 +468,13 @@ viewTask dayindex maybeediting taskindex task =
     case maybeediting of
         Just (DayPartKey index_ (DTask taskindex_ task_)) ->
             if taskindex == taskindex_ then
-                li [ class <| "planner day-task editing" ]
-                    [ Html.form [ onSubmit EditCommit, onKeyDown KeyDown ]
-                        [ input
+                let
+                    tasknameinput =
+                        input
                             [ id "edit-input"
-                            , class "planner day-task editing-input"
-                            , style "width" <| (String.fromInt <| String.length task_.name) ++ ".5ch"
+                            , class "day-task editing-input"
+
+                            -- , style "width" <| (String.fromInt <| String.length task_.name) ++ ".5ch"
                             , value task_.name
                             , autofocus True
                             , maxlength 30
@@ -292,10 +482,19 @@ viewTask dayindex maybeediting taskindex task =
                             , autocomplete False
                             , attribute "data-lpignore" "true"
                             , onInput (\s -> EditUpdate <| DayTaskKeyW dayindex taskindex <| Just <| DTName s)
+                            , onKeyDown KeyDown
+                            , type_ "text"
                             ]
-                            [ text "test" ]
-                        ]
-                    ]
+                            []
+                in
+                [ Html.form [ onSubmit EditCommit, onKeyDown KeyDown ] [ tasknameinput ] ]
+                    |> viewDialog
+                {- li [ class <| "day-task editing" ]
+                   [
+                       [
+                       ]
+                   ]
+                -}
 
             else
                 defaultView
@@ -536,6 +735,23 @@ viewGoal index goal patchState =
              -}
             ]
         ]
+
+
+onClick_StopP : msg -> Html.Attribute msg
+onClick_StopP msg =
+    Html.Events.custom "click"
+        (D.succeed
+            { message = msg
+            , stopPropagation = True
+            , preventDefault = True
+            }
+        )
+
+
+
+-- onDragStart : msg -> Html.Attribute msg
+-- onDragStart msg =
+--     Html.Events.custom "ondragstart"
 
 
 onRightClick : msg -> Html.Attribute msg

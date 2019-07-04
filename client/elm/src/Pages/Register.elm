@@ -6,6 +6,8 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode as D
 import Json.Encode as E
+import Pages.Login as Login
+import Random
 import Route
 import Session exposing (Session)
 
@@ -17,8 +19,9 @@ init session =
       , username = ""
       , password = ""
       , state = LIdle
+      , randStr = "25072001"
       }
-    , Cmd.none
+    , Random.generate GotRandStr generateRandStr
     )
 
 
@@ -27,6 +30,7 @@ type alias Model =
     , email : String
     , username : String
     , password : String
+    , randStr : String
     , state : LoadState
     }
 
@@ -35,21 +39,38 @@ type LoadState
     = LIdle
     | LWait
     | LError Http.Error
-    | LSuccess String
+    | LSuccess
 
 
 type Msg
     = Register
+    | Registered (Result Http.Error String)
     | UpdateEmail String
     | UpdateUsername String
     | UpdatePassword String
+    | GotRandStr (List Int)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         UpdateEmail e ->
-            ( model, Cmd.none )
+            ( { model | email = e }, Cmd.none )
+
+        UpdatePassword p ->
+            ( { model | password = p }, Cmd.none )
+
+        Register ->
+            ( model, register model.email model.password model.randStr )
+
+        Registered (Ok token) ->
+            ( { model | state = LSuccess }, Cmd.none )
+
+        Registered (Err err) ->
+            ( { model | state = LError err }, Cmd.none )
+
+        GotRandStr list ->
+            ( { model | randStr = String.concat <| List.map String.fromInt list }, Cmd.none )
 
         _ ->
             ( model, Cmd.none )
@@ -58,38 +79,96 @@ update msg model =
 view : Model -> List (Html Msg)
 view model =
     let
+        errorspan txt =
+            span [ class "error-text" ] [ text txt ]
+
         append =
             case model.state of
                 LWait ->
-                    span [ class "login wait-text" ] [ text "..." ]
+                    span [ class "wait-text" ] [ text "..." ]
 
-                LSuccess _ ->
-                    span [ class "login success-text" ] [ text "Success!" ]
+                LSuccess ->
+                    span [ class "success-text" ] [ text "Success!" ]
 
                 LError Http.NetworkError ->
-                    span [ class "login error-text" ] [ text "Cannot reach Server" ]
+                    errorspan "Cannot reach Server."
 
                 LError (Http.BadStatus 401) ->
-                    span [ class "login error-text" ] [ text "Wrong identifier or password" ]
+                    errorspan "Wrong identifier or password!"
+
+                LError (Http.BadStatus 409) ->
+                    errorspan "A user with this email already exists!"
 
                 LError _ ->
-                    span [ class "login error-text" ] [ text "An error occurred. Please retry." ]
+                    errorspan "An error occurred. Please retry."
 
                 _ ->
                     text ""
     in
-    [ div [ class "login container" ]
-        [ viewForm model append ]
-    ]
+    Login.viewContainer (viewForm model append) False
 
 
 viewForm : Model -> Html Msg -> Html Msg
 viewForm model append =
-    Html.form [ class "login form", onSubmit Register ]
-        [ h3 [ class "login header" ] [ text "LOGIN" ]
-        , input [ class "login identifier", placeholder "username", value model.username, onInput UpdateUsername, autofocus True, autocomplete True ] []
-        , input [ class "login identifier", placeholder "email", value model.email, onInput UpdateEmail, autofocus True, autocomplete True ] []
-        , input [ class "login password", placeholder "password", type_ "password", value model.password, onInput UpdatePassword ] []
-        , button [ class "login submit", type_ "submit" ] [ text "Login" ]
-        , div [ class "login appendix" ] [ append ]
+    Html.form [ class "form", onSubmit Register ]
+        [ input
+            [ class "identifier"
+            , placeholder "email"
+            , value model.email
+            , type_ "email"
+            , onInput UpdateEmail
+            , autofocus True
+            , autocomplete True
+            , attribute "aria-label" "email input"
+            , tabindex 0
+            ]
+            []
+        , input
+            [ class "password"
+            , placeholder "password"
+            , value model.password
+            , type_ "password"
+            , onInput UpdatePassword
+            , attribute "aria-label" "password input"
+            , tabindex 0
+            ]
+            []
+        , button [ class "submit", type_ "submit" ] [ text "Register" ]
+        , div [ class "appendix" ] [ append ]
         ]
+
+
+register : String -> String -> String -> Cmd Msg
+register email password randStr =
+    Http.post
+        { url = "/api/v3/users"
+        , body = Http.jsonBody (encodeUser email password randStr)
+        , expect = Http.expectJson Registered decodeRegistered
+        }
+
+
+encodeUser : String -> String -> String -> E.Value
+encodeUser email password randStr =
+    let
+        username =
+            case List.head (String.indexes "@" email) of
+                Just index ->
+                    String.left index email ++ "_" ++ randStr
+
+                _ ->
+                    "sweet-potato_" ++ randStr
+    in
+    E.object
+        [ ( "email", E.string email )
+        , ( "username", E.string username )
+        , ( "password", E.string password )
+        ]
+
+
+decodeRegistered =
+    D.field "token" D.string
+
+
+generateRandStr : Random.Generator (List Int)
+generateRandStr =
+    Random.list 8 (Random.int 0 9)

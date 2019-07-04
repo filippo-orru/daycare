@@ -1,4 +1,4 @@
-port module Pages.Login exposing (LoadState(..), Model, Msg(..), decodeUserLogin, encodeUserLogin, init, loginPost, subscriptions, update, view, viewLoginForm)
+port module Pages.Login exposing (LoadState(..), Model, Msg(..), decodeUserLogin, encodeUserLogin, init, loginPost, subscriptions, update, view, viewContainer, viewLoginForm)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -50,40 +50,76 @@ view model =
         append =
             case model.loadstate of
                 LWait ->
-                    span [ class "login wait-text" ] [ text "..." ]
+                    span [ class "wait-text" ] [ text "..." ]
 
                 LSuccess _ ->
-                    span [ class "login success-text" ] [ text "Success!" ]
+                    span [ class "success-text" ] [ text "Success!" ]
 
                 LError Http.NetworkError ->
-                    span [ class "login error-text" ] [ text "Cannot reach Server" ]
+                    span [ class "error-text" ] [ text "Cannot reach Server" ]
 
                 LError (Http.BadStatus 401) ->
-                    span [ class "login error-text" ] [ text "Wrong identifier or password" ]
+                    span [ class "error-text" ] [ text "Wrong identifier or password" ]
 
                 LError _ ->
-                    span [ class "login error-text" ] [ text "An error occurred. Please retry." ]
+                    span [ class "error-text" ] [ text "An error occurred. Please retry." ]
 
                 _ ->
                     text ""
     in
-    [ div [ class "login container" ]
-        [ viewLoginForm model append ]
+    viewContainer (viewLoginForm model append) True
+
+
+viewContainer : Html msg -> Bool -> List (Html msg)
+viewContainer form viewingLogin =
+    let
+        ( registerClass, loginClass ) =
+            if viewingLogin then
+                ( "header disabled round-left", "header round-right" )
+
+            else
+                ( "header round-left", "header disabled round-right" )
+    in
+    [ div [ class "fullscreen-container" ]
+        [ div [ class "dialog-container" ]
+            [ div [ class "dialog-header" ]
+                [ a [ class registerClass, Route.href Route.Register, tabindex 0 ]
+                    [ span [ class "header-text", Route.href Route.Register ] [ text "REGISTER" ] ]
+                , a [ class loginClass, Route.href Route.Login, tabindex 0 ]
+                    [ span [ class "header-text", Route.href Route.Login ] [ text "LOGIN" ] ]
+                ]
+            , div [ class "dialog-body" ]
+                [ form ]
+            ]
+        ]
     ]
 
 
 viewLoginForm : Model -> Html Msg -> Html Msg
 viewLoginForm model appendix =
-    Html.form [ class "login form", onSubmit UserLoginLoad ]
-        [ h3 [ class "login header" ] [ text "LOGIN" ]
-
-        -- , label [ class "login identifier" ] [ text "identifier:" ]
-        , input [ class "login identifier", placeholder "username / email", type_ "email", value model.identifier, onInput UpdateIdentifier, autofocus True, autocomplete True ] []
-
-        -- , label [ class "login password" ] [ text "Password:" ]
-        , input [ class "login password", placeholder "password", type_ "password", value model.password, onInput UpdatePassword ] []
-        , button [ class "login submit", type_ "submit" ] [ text "Login" ]
-        , div [ class "login appendix" ] [ appendix ]
+    Html.form [ class "form", onSubmit UserLoginLoad ]
+        [ input
+            [ class "identifier"
+            , placeholder "username / email"
+            , type_ "text"
+            , value model.identifier
+            , onInput UpdateIdentifier
+            , autofocus True
+            , autocomplete True
+            , tabindex 0
+            ]
+            []
+        , input
+            [ class "password"
+            , placeholder "password"
+            , type_ "password"
+            , value model.password
+            , onInput UpdatePassword
+            , tabindex 0
+            ]
+            []
+        , button [ class "submit", type_ "submit" ] [ text "Login" ]
+        , div [ class "appendix" ] [ appendix ]
         ]
 
 

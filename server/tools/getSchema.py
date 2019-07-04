@@ -6,7 +6,11 @@ descriptionRe = r"^(?:.|\n){0,500}$"
 timezoneRe = r"^[+-](?:0[0-9]|[1][0-4]):(?:00|30|45)$"
 dateRe = r"^(20\d{2})(1[012]|0[1-9])(3[01]|[12][0-9]|0[1-9])$"
 datetimeRe = r"^(20\d{2})(1[012]|0[1-9])(3[01]|[12][0-9]|0[1-9])(?::(0\d|[01]\d|2[0-3])[0-5]\d)?$"
+tokenRe = r"^.{32}$"
 
+nameExpl = "'name' must be between 3 and 30 alphanumeric characters, whitespace, underline or dash"
+descriptionExpl = "'description' must have 0-500 chars, newline allowed"
+usernameExpl = "'username' must have 3 to 20 alphanumeric characters, underline or dash. It may not start or end with dash or underline"
 
 settingsCt = {
     'fullscreen': (r"^true|false$", 0),
@@ -48,17 +52,17 @@ timeCt = {
 }
 
 taskCt = {
-    'name': (nameRe, 1),
+    'name': (nameRe, 1, nameExpl),
     'state': (r"completed|todo", 1),
     'important': (r"true|false", 0),
     'time': (timeCt, 0)
 }
     
 dayCt = {
-    'date': (dateRe, 1),
-    'description': (descriptionRe, 0),
-    'attributes': ([nameRe], 0),
-    'tasks': ([taskCt], 0)
+    'date': (dateRe, 1, "'date' must have format of YYYYMMDD"),
+    'description': (descriptionRe, 0, descriptionExpl),
+    'attributes': ([nameRe], 0, "'attributes' must be a list of attribute"),
+    'tasks': ([taskCt], 0, "'tasks' must be a list of task")
 }
 
 userCt = {
@@ -69,7 +73,7 @@ userCt = {
     'activities': ([activityCt], 0),
     'attributes': ([attributeCt], 0),
     'categories': ([categoryCt], 0),
-    'token': (r"^.{32}$", 0)
+    # 'token': (tokenRe, 0)
 }
 
 userPostCt = {

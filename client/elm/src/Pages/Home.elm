@@ -21,27 +21,28 @@ type Msg
 
 view : Model -> List (Html Msg)
 view model =
-    [ div [ class "home header" ]
-        [ a [ class "home header-link", Route.href Route.Register, style "margin-right" "16px" ] [ text "register" ] --, style "left" "30px"
-        , a [ class "home header-link", Route.href Route.Login ] [ text "login" ]
+    [ div [ class "header" ]
+        [ a [ class "header-link", Route.href Route.Register ] [ text "register" ] --, style "left" "30px"
+        , a [ class "header-link", Route.href Route.Login ] [ text "login" ]
+        , a [ class "header-link", Route.href Route.App, style "margin-right" "0" ] [ text "app" ]
         ]
-    , div [ class "home container" ]
-        [ a [ Route.href Route.App, class "home huge-header" ] [ text "preparing for the service" ]
+    , div [ class "container" ]
+        [ a [ Route.href Route.App, class "huge-header" ] [ text "preparing for the service" ]
         ]
     ]
 
 
 view2 : Model -> List (Html Msg)
 view2 model =
-    [ div [ class "home header" ]
-        [ div [ class "home header-header-container" ]
-            [ h1 [ class "home header-header" ] [ text "daycare" ]
-            , a [ class "home header-login-link", Route.href Route.App ] [ text "APP" ]
+    [ div [ class "header" ]
+        [ div [ class "header-header-container" ]
+            [ h1 [ class "header-header" ] [ text "daycare" ]
+            , a [ class "header-login-link", Route.href Route.App ] [ text "APP" ]
             ]
         ]
-    , div [ class "home body" ]
-        [ div [ class "home hero hero-main" ]
-            [ h3 [ class "home hero-main-text" ] [ text "hero" ] ]
+    , div [ class "body" ]
+        [ div [ class "hero hero-main" ]
+            [ h3 [ class "hero-main-text" ] [ text "hero" ] ]
         ]
 
     -- , a [ Route.href Route.App ] [ text "Planner" ]

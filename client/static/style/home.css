@@ -1,0 +1,81 @@
+body {
+    visibility: visible;
+    line-height: inherit;
+    text-align: left;
+}
+
+body::before {
+    content: none;
+}
+
+div.container {
+    height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgb(7, 7, 7);
+    padding: 48px;
+}
+
+a.huge-header {
+    font-weight: 600;
+    font-size: 50px;
+    color: white;
+    text-transform: uppercase;
+    text-align: center;
+    text-decoration: none;
+    transition: font 0.2s;
+}
+
+a.huge-header:focus {
+    font-size: 55px;
+}
+
+.header {
+    position: absolute;
+    top: 30px;
+    display: inline-block;
+    right: 30px;
+}
+
+.header-link {
+    color: rgb(78, 78, 78);
+    text-decoration: none;
+    transition: color 0.1s;
+    margin-right: 16px;
+}
+
+.header-link:hover {
+    text-decoration: underline;
+    color: rgb(131, 131, 131);
+}
+
+/* div.header {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    width: 100%;
+    top: 0;
+    height: 100px;
+    box-shadow: 0 3px 4px rgba(0, 0, 0, 0.46);
+    padding: 8px 16px;
+    color: hsl(190, 58%, 65%);
+    background-color: hsl(202, 33%, 95%);
+    /* margin-bottom: 16px; /
+    /* border-bottom: 1px solid rgba(0, 0, 0, 0.25); /
+} */
+
+div.body {
+    padding-top: 128px;
+    background-color: hsl(178, 57%, 91%);
+    /* height: 100vh - 128px; */
+    height: 700px;
+}
+
+div.hero {
+    background-color: hotpink;
+    padding: 1em;
+    transform: rotate(-5deg);
+    overflow: hidden;
+}

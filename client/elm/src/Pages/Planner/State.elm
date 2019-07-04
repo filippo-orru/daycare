@@ -9,6 +9,7 @@ import Json.Decode as D
 import Json.Encode as E
 import Pages.Planner.Rest as Rest exposing (..)
 import Pages.Planner.Types as Model exposing (..)
+import Route
 import Session exposing (Session)
 import Task
 import Time exposing (Month(..))
@@ -32,6 +33,10 @@ init session =
     in
     case Session.token session of
         Just token ->
+            let
+                _ =
+                    Debug.log "loaded token via session" token
+            in
             loggedinInit session token (Tuple.first range)
 
         _ ->
@@ -78,9 +83,12 @@ loadedInit session token user days today =
 
             --  hovering = Nothing
             , loading = Nothing
-            , sidebarExpanded = False
             , adding = Nothing
             , dayRange = range
+            }
+        , partVis =
+            { sidebar = False
+            , settingsOverlay = Nothing
             }
         , today = today
 
@@ -99,8 +107,13 @@ update msg_ model_ =
     case ( model_, msg_ ) of
         ( Guest model, GuestMsg msg ) ->
             case msg of
-                LoadedToken token ->
-                    loggedinInit model.session token model.today
+                LoadedToken maybetoken ->
+                    case maybetoken of
+                        "" ->
+                            ( model_, Cmd.none )
+
+                        token ->
+                            loggedinInit model.session token model.today
 
                 _ ->
                     ( Guest model, Cmd.none )
@@ -135,7 +148,10 @@ update msg_ model_ =
                             ( date, Date.add Date.Days -7 date )
                     in
                     -- update (LoadDays range) model
-                    ( Loggedin { model | today = date, dayRange = range }, loadDays (LoggedinMsg << LoadedDays) model.token range model.today )
+                    ( Loggedin { model | today = date, dayRange = range }, loadDays (LoggedinMsg << LoadedDays) model.token range )
+
+                LogoutL ->
+                    ( model_, Cmd.none )
 
         -- LoadedToken token ->
         --     let
@@ -167,7 +183,7 @@ updateLoaded msg model =
             cmdnone { model | user = user }
 
         UpdatedDays (Ok days) ->
-            cmdnone { model | days = days }
+            cmdnone { model | days = days, viewState = (\vs -> { vs | loading = Nothing }) model.viewState }
 
         EditDiscard ->
             cmdnone
@@ -402,10 +418,10 @@ updateLoaded msg model =
                     Debug.todo "editcommit implement other"
 
         Synchronize (Ok _) ->
-            ( { model | viewState = (\vs -> { vs | loading = Just ViewLSuccess }) model.viewState }, Cmd.batch [ loadUser (LoadedMsg << UpdatedUser) model.token, loadDays (LoadedMsg << UpdatedDays) model.token model.viewState.dayRange model.today ] )
+            ( { model | viewState = (\vs -> { vs | loading = Just ViewLSuccess }) model.viewState }, Cmd.batch [ loadUser (LoadedMsg << UpdatedUser) model.token, loadDays (LoadedMsg << UpdatedDays) model.token model.viewState.dayRange ] )
 
         Synchronize (Err err) ->
-            ( { model | viewState = (\vs -> { vs | loading = Just (ViewLError err) }) model.viewState }, Cmd.batch [ loadUser (LoadedMsg << UpdatedUser) model.token, loadDays (LoadedMsg << UpdatedDays) model.token model.viewState.dayRange model.today ] )
+            ( { model | viewState = (\vs -> { vs | loading = Just (ViewLError err) }) model.viewState }, Cmd.batch [ loadUser (LoadedMsg << UpdatedUser) model.token, loadDays (LoadedMsg << UpdatedDays) model.token model.viewState.dayRange ] )
 
         AddStart element ->
             case element of
@@ -422,7 +438,7 @@ updateLoaded msg model =
                 DayTaskKeyW dindex tindex Nothing ->
                     let
                         task =
-                            Task "" "" TSTodo
+                            Task "" "" TSTodo Nothing
 
                         -- Task "" "" TSTodo Nothing
                     in
@@ -436,7 +452,7 @@ updateLoaded msg model =
                 Just (DayPartKey dindex (DTask _ _)) ->
                     let
                         task =
-                            Task value value TSTodo
+                            Task value value TSTodo Nothing
                     in
                     cmdnone { model | viewState = (\vs -> { vs | adding = Just <| DayPartKey dindex <| DTask 0 task }) model.viewState }
 
@@ -490,7 +506,7 @@ updateLoaded msg model =
             ( { model__ | viewState = (\vs -> { vs | adding = Nothing }) model.viewState }, msg__ )
 
         ToggleSidebar ->
-            cmdnone { model | viewState = (\vs -> { vs | sidebarExpanded = not vs.sidebarExpanded }) model.viewState }
+            cmdnone { model | partVis = (\pv -> { pv | sidebar = not pv.sidebar }) model.partVis }
 
         AddDay index date ->
             let
@@ -582,6 +598,23 @@ updateLoaded msg model =
             else
                 cmdnone model
 
+        LoadMoreDays ->
+            let
+                newRange =
+                    ( model.today, Date.add Date.Days -7 <| Tuple.second model.viewState.dayRange )
+                        |> Debug.log "newrange"
+            in
+            ( { model | viewState = (\vs -> { vs | loading = Just ViewLLoading, dayRange = newRange }) model.viewState }, loadDays (LoadedMsg << UpdatedDays) model.token model.viewState.dayRange )
+
+        HideSettings ->
+            cmdnone { model | partVis = (\pv -> { pv | settingsOverlay = Nothing }) model.partVis }
+
+        ShowSettings part ->
+            cmdnone { model | partVis = (\pv -> { pv | settingsOverlay = Just part }) model.partVis }
+
+        Logout ->
+            ( model, Cmd.batch [ logoutPort (), Route.replaceUrl (Session.navKey model.session) Route.Home ] )
+
         _ ->
             cmdnone model
 
@@ -610,10 +643,6 @@ toSession model =
 
 focusEdit : Cmd StateMsg
 focusEdit =
-    let
-        _ =
-            Debug.log "focusing" ""
-    in
     Task.attempt (\_ -> LoadedMsg <| NoOp) (Browser.Dom.focus "edit-input")
 
 
@@ -657,6 +686,9 @@ port saveTokenPlanner : String -> Cmd msg
 
 
 port loadToken : () -> Cmd msg
+
+
+port logoutPort : () -> Cmd msg
 
 
 subscriptions : StateModel -> Sub StateMsg

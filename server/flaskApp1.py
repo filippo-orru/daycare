@@ -2,11 +2,14 @@ from flask import Flask, jsonify as j, request, json, make_response as mr, curre
 from flask_cors import CORS
 from datetime import datetime
 
+import pymongo
+
 from tools.actions import cleanList, clear
 
 import databaseApi as dba
 import flask_helper as fh
 import math
+
 
 app = Flask(__name__,
             template_folder="frontend/templates",
@@ -72,15 +75,28 @@ def users():
     # optional = [('username', fh.getSchema.usernameRe)]
 
     try:
-        email, password, username = fh.assertRequestStrictC(
-            request, fh.getSchema.userPostCt)
+        validBody = fh.assertRequestStrictC(request, fh.getSchema.userPostCt)
     except (KeyError, TypeError):
         return hRes.BadRequest()
 
     try:
-        user = dba.addUser(*fh.cleanList(email, password, username))
-    except ValueError:
+        if 'email' in validBody and 'password' in validBody:
+            if 'username' in validBody:
+                user = dba.addUser(validBody['email'], validBody['password'], validBody['username'])
+            else:
+                user = dba.addUser(validBody['email'], validBody['password'])
+
+        else:
+            return hRes.BadRequest()
+        
+    except (ValueError, pymongo.errors.DuplicateKeyError):
+    # except (ValueError, pymongo.errors.DuplicateKeyError):
         return hRes.Conflict()
+            
+    try:
+        user['token'] = dba.login('email', validBody['email'], validBody['password'])
+    except ValueError:
+        return hRes.InternalServer()
     # except:
     #     return hRes.InternalServer()
 
@@ -104,7 +120,7 @@ def user(uID):
     elif request.method == 'PATCH':
         try:
             schema = fh.getSchema.userCt
-            schema.pop('token')
+            # schema.pop('token')
 
             validBody = fh.assertRequestStrictC(request, schema)
         except KeyError:
@@ -179,15 +195,11 @@ def days(uID):
         return mr(j(_days), 200)
 
     elif request.method == 'POST':
-        try:
-            # fh.assertRequestStrict( request, [('date', fh.getSchema.dateRe)])
-            #  ('owner', fh.getSchema.emailRe)])  # body must have date
-            day = fh.assertRequestStrictC(request, fh.getSchema.dayCt)
-        except KeyError:
-            return hRes.BadRequest()
-
-        # day = fh.assertRequestStrict(
-        #     request, schema=fh.getSchema.dayR)  # filter out non-valid keys
+        # try:
+        [day, hints, fatal] = fh.assertRequestStrictCH(request, fh.getSchema.dayCt)
+        
+        if fatal:
+            return hRes.BadRequest(hints)
 
         for _day in _days:  # todo: inefficient
             if day['date'] == _day['date']:

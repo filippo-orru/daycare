@@ -1,4 +1,4 @@
-module Pages.Planner.Types exposing (Attribute, AttributeKey(..), ContentKey(..), ContentKeyW(..), Day, DayPartKey(..), DayTaskKey(..), DaysLoadState(..), EditState(..), Goal, GoalKey(..), GuestModel, GuestMsg(..), LoadedModel, LoadedMsg(..), LoggedinModel, LoggedinMsg(..), RangeDay, StateModel(..), StateMsg(..), Task, TaskState(..), TimeD, User, UserLevel(..), UserLoadState(..), UserPart(..), UserPatchState, ViewLoadState(..), ViewState)
+module Pages.Planner.Types exposing (Attribute, AttributeKey(..), ContentKey(..), ContentKeyW(..), Day, DayPartKey(..), DayTaskKey(..), DaysLoadState(..), EditState(..), Goal, GoalKey(..), GuestModel, GuestMsg(..), LoadedModel, LoadedMsg(..), LoggedinModel, LoggedinMsg(..), PartVisibility, RangeDay, SettingsPart(..), StateModel(..), StateMsg(..), Task, TaskState(..), Time, User, UserLevel(..), UserLoadState(..), UserPart(..), UserPatchState, ViewLoadState(..), ViewState)
 
 import Array exposing (Array)
 import Date exposing (Date)
@@ -35,6 +35,7 @@ type alias LoadedModel =
     , days : Array RangeDay
     , viewState : ViewState
     , today : Date
+    , partVis : PartVisibility
 
     -- , dialog : Maybe (Dialog (Html StateMsg))
     }
@@ -45,10 +46,21 @@ type alias ViewState =
 
     -- , hovering : Maybe ContentKey
     , editing : Maybe ContentKey
-    , sidebarExpanded : Bool
     , adding : Maybe ContentKey
     , dayRange : ( Date, Date )
     }
+
+
+type alias PartVisibility =
+    { sidebar : Bool
+    , settingsOverlay : Maybe SettingsPart
+    }
+
+
+type SettingsPart
+    = SettingsOverview
+    | SettingsAccount
+    | SettingsSettings
 
 
 type StateMsg
@@ -67,6 +79,7 @@ type LoggedinMsg
     = LoadedDays (Result Http.Error (Array RangeDay))
     | LoadedUser (Result Http.Error User)
     | Today Date
+    | LogoutL
 
 
 
@@ -96,6 +109,9 @@ type LoadedMsg
     | SynchronizeLoad (Cmd StateMsg)
     | KeyDown Int Bool
     | NoOp
+    | Logout
+    | HideSettings
+    | ShowSettings SettingsPart
 
 
 type UserLoadState
@@ -239,8 +255,7 @@ type alias Task =
     { name_ : String
     , name : String
     , state : TaskState
-
-    -- , time : Maybe TimeD
+    , time : Maybe Time
     }
 
 
@@ -252,9 +267,9 @@ type TaskState
     | TSP25
 
 
-type alias TimeD =
+type alias Time =
     { pre : Int
-    , start : String
-    , end : String
+    , start : Float
+    , end : Float
     , post : Int
     }

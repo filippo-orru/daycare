@@ -1,0 +1,9 @@
+body {
+    visibility: visible;
+    line-height: inherit;
+    text-align: left;
+}
+
+body::before {
+    content: none;
+}

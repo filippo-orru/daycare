@@ -1,4 +1,4 @@
-module Pages.Planner.Rest exposing (decodeAttribute, decodeAttributeKey, decodeDate, decodeDay, decodeDays, decodeGoal, decodeGoalKey, decodeLevel, decodeRangeDay, decodeRangeDays, decodeState, decodeTask, decodeTime, decodeUser, encodeAttribute, encodeDay, encodeGoal, encodeState, encodeTask, encodeTasks, loadDays, loadUser, patchAttribute, patchDay, patchGoals, postAttribute, postDay)
+module Pages.Planner.Rest exposing (decodeAttribute, decodeAttributeKey, decodeDate, decodeDay, decodeDays, decodeFullTime, decodeGoal, decodeGoalKey, decodeLevel, decodeRangeDay, decodeRangeDays, decodeState, decodeTask, decodeTime, decodeUser, encodeAttribute, encodeDay, encodeGoal, encodeState, encodeTask, encodeTasks, loadDays, loadUser, patchAttribute, patchDay, patchGoals, postAttribute, postDay)
 
 -- import Html.Attributes
 
@@ -34,8 +34,8 @@ loadUser msg token =
         }
 
 
-loadDays : (Result Http.Error (Array RangeDay) -> StateMsg) -> String -> ( Date, Date ) -> Date -> Cmd StateMsg
-loadDays msg token range today =
+loadDays : (Result Http.Error (Array RangeDay) -> StateMsg) -> String -> ( Date, Date ) -> Cmd StateMsg
+loadDays msg token range =
     let
         limit =
             Date.diff Date.Days (Tuple.second range) (Tuple.first range)
@@ -129,8 +129,11 @@ decodeDays range_ =
         range =
             Date.range Date.Day 1 (Date.add Date.Days -1 <| Tuple.second range_) (Date.add Date.Days 1 <| Tuple.first range_)
                 |> List.reverse
+
+        -- |> Debug.log "range of days"
     in
     D.array decodeDay
+        -- |> D.andThen (Debug.log "array of days")
         |> D.andThen (decodeRangeDays range)
 
 
@@ -144,14 +147,15 @@ decodeRangeDays range days =
 decodeRangeDay : Array Day -> Date -> RangeDay
 decodeRangeDay days date =
     let
-        f =
-            Array.filter (\d -> d.date == date) days
+        filtered =
+            Array.filter (\day -> day.date == date) days
     in
-    if Array.length f > 0 then
-        RangeDay date (f |> Array.toList |> List.head)
+    RangeDay date (List.head <| Array.toList <| filtered)
 
-    else
-        RangeDay date Nothing
+
+
+-- else
+--     RangeDay date Nothing
 
 
 decodeDay : Decoder Day
@@ -193,7 +197,12 @@ decodeDate =
                                )
 
                     day =
-                        String.slice 6 8 datestr
+                        (if String.startsWith "0" <| String.slice 6 8 datestr then
+                            String.slice 7 8 datestr
+
+                         else
+                            String.slice 6 8 datestr
+                        )
                             |> D.decodeString D.int
                 in
                 case ( year, month, day ) of
@@ -201,16 +210,69 @@ decodeDate =
                         D.succeed (Date.fromCalendarDate yr mo da)
 
                     _ ->
+                        let
+                            _ =
+                                ( year, month, day )
+                                    |> Debug.log "failed date parts"
+                        in
                         D.fail "could not create date"
             )
 
 
 decodeTask : Decoder Task
 decodeTask =
-    D.map3 Task
+    D.map4 Task
         (D.field "name" D.string)
         (D.field "name" D.string)
         (D.field "state" decodeState |> D.withDefault TSTodo)
+        (D.optionalField "time" decodeTime)
+
+
+decodeTime : Decoder Time
+decodeTime =
+    D.map4 Time
+        (D.field "pre" decodeIntTime)
+        (D.field "start" decodeFullTime)
+        (D.field "end" decodeFullTime)
+        (D.field "post" decodeIntTime)
+
+
+decodeIntTime : D.Decoder Int
+decodeIntTime =
+    D.string
+        |> D.andThen
+            (\ms ->
+                case String.toInt ms of
+                    Just s ->
+                        D.succeed s
+
+                    Nothing ->
+                        D.fail "Invalid number in time of task"
+                            |> Debug.log "failed decode inttime"
+            )
+
+
+decodeFullTime : Decoder Float
+decodeFullTime =
+    D.string
+        |> D.andThen
+            (\timestr ->
+                let
+                    startstr =
+                        String.slice 0 2 timestr
+
+                    endstr =
+                        String.slice 2 4 timestr
+                in
+                case ( String.toFloat startstr, String.toFloat endstr ) of
+                    ( Just startfloat, Just endfloat ) ->
+                        (D.succeed <| startfloat + endfloat / 60)
+                            |> Debug.log "succeeded fulltime decoding"
+
+                    _ ->
+                        D.fail "time has invalid format"
+                            |> Debug.log "failed decode fulltime"
+            )
 
 
 
@@ -241,13 +303,14 @@ decodeState =
             )
 
 
-decodeTime : Decoder TimeD
-decodeTime =
-    D.map4 TimeD
-        (D.field "pre" D.int)
-        (D.field "start" D.string)
-        (D.field "end" D.string)
-        (D.field "post" D.int)
+
+-- decodeTime : Decoder TimeD
+-- decodeTime =
+--     D.map4 TimeD
+--         (D.field "pre" D.int)
+--         (D.field "start" D.string)
+--         (D.field "end" D.string)
+--         (D.field "post" D.int)
 
 
 encodeDay : Day -> E.Value

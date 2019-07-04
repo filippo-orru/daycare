@@ -1,5 +1,5 @@
 <!DOCTYPE HTML>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="UTF-8">
@@ -19,12 +19,49 @@
 	<link rel="icon" type="image/png" sizes="96x96" href="/ico/favicon-96x96.png">
 	<link rel="icon" type="image/png" sizes="16x16" href="/ico/favicon-16x16.png">
 	<link rel="manifest" href="/manifest.json">
-	<meta name="msapplication-TileColor" content="#000000">
+	<meta name="msapplication-TileColor" content="#d9f1f7">
 	<meta name="msapplication-TileImage" content="/ico/ms-icon-144x144.png">
-	<meta name="theme-color" content="#000000">
+	<meta name="theme-color" content="#d9f1f7">
 	<title>daycare</title>
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.css">
-	<link rel="stylesheet" href="style.css">
+	<!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.css"> -->
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
+
+	<style>
+		* {
+			-webkit-font-smoothing: antialiased;
+			-moz-osx-font-smoothing: grayscale;
+			font-family: 'Open Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+			box-sizing: border-box;
+		}
+
+		form {
+			display: inline-block;
+		}
+
+		.noselect {
+			-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			-khtml-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			user-select: none;
+		}
+
+		body:before {
+			content: "Loading ...";
+			display: block;
+			visibility: visible;
+		}
+
+		body {
+			visibility: hidden;
+			/* display: flex;
+			align-items: center;
+			justify-content: center; */
+			text-align: center;
+			line-height: 100vh;
+		}
+	</style>
 	<!-- Global site tag (gtag.js) - Google Analytics -->
 	<script async src="https://www.googletagmanager.com/gtag/js?id=UA-56779587-8"></script>
 	<script>
@@ -37,16 +74,18 @@
 	<script src="main.js"></script>
 	<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css"
 		integrity="sha384-oS3vJWv+0UjzBfQzYUhtDYW+Pj2yciDJxpsK1OYPAYjqT085Qq/1cq5FLXAZQ7Ay" crossorigin="anonymous">
-	<link href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,600,800&display=swap" rel="stylesheet">
+	<!-- <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,600,800&display=swap" rel="stylesheet"> -->
+	<style>
+		@import url('https://fonts.googleapis.com/css?family=Open+Sans:400,400i,600,800&display=swap');
+	</style>
 </head>
 
 <body>
 	<script>
-
 		function loadFromStorage() {
 			console.log('loading from storage');
 			let token = JSON.parse(localStorage.getItem('daycare-token'));
-			if (token !== null && token !== "") {
+			if (!['', null].includes(token)) {
 				return token
 			} else {
 				return "";
@@ -109,20 +148,34 @@
 			});
 		});
 
+		let token = JSON.parse(localStorage.getItem('daycare-token'));
+
 		app.ports.saveTokenLogin.subscribe(function (token) {
-			localStorage.setItem('daycare-token', JSON.stringify(token));
+			if (!['', null].includes(token)) {
+				localStorage.setItem('daycare-token', JSON.stringify(token));
+			}
 		});
 		app.ports.saveTokenPlanner.subscribe(function (token) {
-			localStorage.setItem('daycare-token', JSON.stringify(token));
+			if (!['', null].includes(token)) {
+				localStorage.setItem('daycare-token', JSON.stringify(token));
+			}
 		});
 
 		app.ports.loadToken.subscribe(function () {
+			if (!['', null].includes(token)) {
+				app.ports.loadedTokenLogin.send(loadFromStorage());
+				app.ports.loadedTokenPlanner.send(loadFromStorage());
+			}
+		});
+
+		app.ports.logoutPort.subscribe(function () {
+			localStorage.setItem('daycare-token', JSON.stringify(''));
+		});
+
+		if (token !== null && token !== "") {
 			app.ports.loadedTokenLogin.send(loadFromStorage());
 			app.ports.loadedTokenPlanner.send(loadFromStorage());
-		});
-		
-		app.ports.loadedTokenLogin.send(loadFromStorage());
-		app.ports.loadedTokenPlanner.send(loadFromStorage());
+		}
 
 		// function saveToStorage(key, value)
 	</script>
