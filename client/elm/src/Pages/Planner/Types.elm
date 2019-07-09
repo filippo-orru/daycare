@@ -1,6 +1,7 @@
-module Pages.Planner.Types exposing (Attribute, AttributeKey(..), ContentKey(..), ContentKeyW(..), Day, DayPartKey(..), DayTaskKey(..), DaysLoadState(..), EditState(..), Goal, GoalKey(..), GuestModel, GuestMsg(..), LoadedModel, LoadedMsg(..), LoggedinModel, LoggedinMsg(..), PartVisibility, RangeDay, SettingsPart(..), StateModel(..), StateMsg(..), Task, TaskState(..), Time, User, UserLevel(..), UserLoadState(..), UserPart(..), UserPatchState, ViewLoadState(..), ViewState)
+module Pages.Planner.Types exposing (Attribute, AttributeKey(..), ContentKey(..), ContentKeyW(..), DTPart(..), Day, DayPartKey(..), DayTaskKey(..), DaysLoadState(..), EditState(..), Goal, GoalKey(..), GuestModel, GuestMsg(..), LoadedModel, LoadedMsg(..), LoggedinModel, LoggedinMsg(..), PartVisibility, RangeDay, SettingsPart(..), StateModel(..), StateMsg(..), Task, TaskState(..), Time, User, UserLevel(..), UserLoadState(..), UserPart(..), UserPatchState, ViewLoadState(..), ViewState)
 
 import Array exposing (Array)
+import Browser.Dom
 import Date exposing (Date)
 import Http
 import Session exposing (Session)
@@ -22,7 +23,7 @@ type alias LoggedinModel =
     { session : Session
     , token : String
     , user : Maybe (Result Http.Error User)
-    , days : Maybe (Result Http.Error (Array RangeDay))
+    , days : Maybe (Result Http.Error (Array Day))
     , dayRange : ( Date, Date )
     , today : Date
     }
@@ -32,7 +33,7 @@ type alias LoadedModel =
     { session : Session
     , token : String
     , user : User
-    , days : Array RangeDay
+    , days : Array Day
     , viewState : ViewState
     , today : Date
     , partVis : PartVisibility
@@ -48,6 +49,7 @@ type alias ViewState =
     , editing : Maybe ContentKey
     , adding : Maybe ContentKey
     , dayRange : ( Date, Date )
+    , dayInFocus : ( Int, Float )
     }
 
 
@@ -61,6 +63,7 @@ type SettingsPart
     = SettingsOverview
     | SettingsAccount
     | SettingsSettings
+    | SettingsHide
 
 
 type StateMsg
@@ -76,7 +79,7 @@ type GuestMsg
 
 
 type LoggedinMsg
-    = LoadedDays (Result Http.Error (Array RangeDay))
+    = LoadedDays (Result Http.Error (Array Day))
     | LoadedUser (Result Http.Error User)
     | Today Date
     | LogoutL
@@ -88,7 +91,7 @@ type LoggedinMsg
 
 type LoadedMsg
     = UpdatedUser (Result Http.Error User)
-    | UpdatedDays (Result Http.Error (Array RangeDay))
+    | UpdatedDays (Result Http.Error (Array Day))
     | LoadMoreDays
     | UpdateAttributePart AttributeKey String
     | UpdateGoalPart ContentKey GoalKey
@@ -103,15 +106,16 @@ type LoadedMsg
     | AddUpdate String
     | AddDiscard
     | AddCommit
-    | ToggleDayTask Int Task Int
+    | ToggleDayTask DTPart Int Task Int
       -- | EditDayTask Int Task Int
     | AddDay Int Date
     | SynchronizeLoad (Cmd StateMsg)
     | KeyDown Int Bool
     | NoOp
     | Logout
-    | HideSettings
     | ShowSettings SettingsPart
+    | ScrolledDays
+    | ComputedDayDistance Int (Result Browser.Dom.Error Browser.Dom.Element)
 
 
 type UserLoadState
@@ -208,6 +212,11 @@ type DayPartKey
     | DTask Int Task
 
 
+type DTPart
+    = DTState
+    | DTImportant
+
+
 
 -- | DTaskPart Int DayTaskKey
 -- type DayPartKeyW
@@ -218,7 +227,7 @@ type DayPartKey
 
 type DayTaskKey
     = DTName String
-    | DTState
+    | DTState_
 
 
 type ContentKey
@@ -244,10 +253,12 @@ type alias RangeDay =
 type alias Day =
     { date_ : Date
     , date : Date
-    , owner : String
+
+    -- , owner : String
     , description : Maybe String
     , attributes : List String
     , tasks : Array Task
+    , isPosted : Bool
     }
 
 
@@ -256,6 +267,7 @@ type alias Task =
     , name : String
     , state : TaskState
     , time : Maybe Time
+    , important : Bool
     }
 
 

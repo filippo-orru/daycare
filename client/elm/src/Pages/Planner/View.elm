@@ -14,7 +14,7 @@ import Json.Encode as E
 import Pages.Planner.Types as Model exposing (..)
 import Route
 import Svg as Svg
-import Svg.Attributes as Svg
+import Svg.Attributes as SvgA
 
 
 
@@ -79,7 +79,7 @@ view model_ =
                         else
                             text ""
                   in
-                  div [ class "planner box" ]
+                  div [ class "box" ]
                     [ loading ( "Loading User..." ++ (Tuple.first <| viewUserStatus), Tuple.second <| viewUserStatus )
                     , loading ( "Loading Days..." ++ (Tuple.first <| viewDaysStatus), Tuple.second <| viewDaysStatus )
                     , appendix
@@ -90,13 +90,73 @@ view model_ =
         Loaded model ->
             List.map (Html.map LoadedMsg)
                 [ viewOverlay model.partVis
-                , div [ class "planner wrapper" ]
+                , viewFixedHeader model.user model.partVis
+                , div [ class "planner-wrapper" ]
                     [ viewSidebar model.viewState model.partVis model.user
-                    , div [ class "planner planner-body" ]
-                        [ viewDays model.days model.viewState
+                    , viewMobileWeekOverview model.today
+                    , div [ class "planner-body" ]
+                        --, on "scroll" (D.succeed ScrolledDays)
+                        [ div [ class "days-top-buffer" ] []
+                        , viewDays model.days model.viewState model.today
                         ]
                     ]
                 ]
+
+
+viewFixedHeader : User -> PartVisibility -> Html LoadedMsg
+viewFixedHeader user partVis =
+    let
+        sidebarTglCls =
+            if partVis.sidebar then
+                "fas fa-arrow-left"
+
+            else
+                "fas fa-bars"
+    in
+    div [ class "fixed-header" ]
+        [ div [ class "toggle-sidebar button", onClick ToggleSidebar ]
+            [ i [ class sidebarTglCls ] []
+            ]
+        , h4 [ class "header-text noselect" ] [ text "daycare" ]
+        , div [ class "user-menu button", onClick (ShowSettings SettingsOverview) ] [ i [ class "fas fa-user-circle" ] [] ]
+        ]
+
+
+viewMobileWeekOverview today =
+    let
+        week_start =
+            Date.add Date.Days (1 - Date.weekdayNumber today) today
+
+        week_end =
+            Date.add Date.Days (7 - Date.weekdayNumber today) today
+
+        range =
+            Date.range Date.Day 1 week_start (Date.add Date.Days 1 week_end)
+    in
+    div [ class "mobile week-overview" ]
+        [ div [ class "week-overview-head" ]
+            [ button [ class "week-overview-scroll" ] [ i [ class "fas fa-chevron-left" ] [] ]
+            , h5 [ class "week-overview-month noselect" ] [ text <| Date.format "MMMM YYYY" (Date.add Date.Days 3 week_start) ]
+            , button [ class "week-overview-scroll" ] [ i [ class "fas fa-chevron-right" ] [] ]
+            ]
+        , div [ class "week-overview-body noselect" ] <| List.map (viewWeekOverviewDay today) range
+        ]
+
+
+viewWeekOverviewDay today date =
+    let
+        todayClass =
+            if date == today then
+                " today"
+
+            else
+                ""
+    in
+    div [ class <| "week-overview-day" ++ todayClass ]
+        [ span [ class "week-overview-weekday" ]
+            [ text <| Date.format "EE" date ]
+        , span [ class "week-overview-date" ] [ text <| Date.format "dd" date ]
+        ]
 
 
 viewSidebar : ViewState -> PartVisibility -> User -> Html LoadedMsg
@@ -108,39 +168,42 @@ viewSidebar viewState partVis user =
 
             else
                 ">"
-    in
-    div
-        [ class <|
-            "planner sidebar-wrapper"
+
+        wrapperClass =
+            "sidebar-wrapper"
                 ++ (if partVis.sidebar then
                         " show"
 
                     else
                         " hide"
                    )
-        ]
+    in
+    div [ class wrapperClass ]
         [ div [ class "planner sidebar" ]
-            [ div [ class "planner sidebar-header noselect" ]
-                [ div [ class "planner header" ] [ text user.email ]
-                , div [ class "sidebar-header-icon", onClick (ShowSettings SettingsOverview) ]
-                    [ i [ class "fas fa-cog", title "Settings" ] []
-                    ]
-                , h2 [ class "planner sidebar-header-text" ] [ text "daycare" ]
-                , viewSyncIndicator viewState.loading
-                ]
-            , hr [ class "planner sidebar" ] []
-            , div [ class "planner sidebar-body" ]
+            [ {- div [ class "planner sidebar-header noselect" ]
+                     [ div [ class "planner header" ] [ text user.email ]
+                     , div [ class "sidebar-header-icon", onClick (ShowSettings SettingsOverview) ]
+                         [ i [ class "fas fa-cog", title "Settings" ] []
+                         ]
+                     , h2 [ class "planner sidebar-header-text" ] [ text "daycare" ]
+                     , viewSyncIndicator viewState.loading
+                     ]
+                 , hr [ class "planner sidebar" ] []
+                 ,
+              -}
+              div [ class "planner sidebar-body" ]
                 [ -- text ("email: " ++ user.email)
                   viewAttributes user viewState
                 ]
-            , button [ class "planner sidebar-expand", onClick ToggleSidebar ] [ text tglBtnTxt ]
+
+            -- , button [ class "planner sidebar-expand", onClick ToggleSidebar ] [ text tglBtnTxt ]
             ]
         ]
 
 
 viewDialog : List (Html LoadedMsg) -> Html LoadedMsg
 viewDialog dcont =
-    div [ class "fullscreen-overlay darken", onClick HideSettings ]
+    div [ class "fullscreen-overlay darken", onClick <| ShowSettings SettingsHide ]
         [ div [ class "center-dialog", onClick_StopP NoOp ]
             dcont
         ]
@@ -210,16 +273,16 @@ viewSyncIndicator loading =
 
             _ ->
                 i
-                    [ class "planner fas fa-check-circle"
+                    [ class "fas fa-check-circle"
                     , title "Up to date!"
                     ]
                     []
         ]
 
 
-viewDays : Array RangeDay -> ViewState -> Html LoadedMsg
-viewDays days viewState =
-    div [ class "planner days" ] <|
+viewDays : Array Day -> ViewState -> Date -> Html LoadedMsg
+viewDays days viewState today =
+    div [ class "days" ] <|
         -- (case daysLs of
         --     DaysLSuccess days ->
         (Array.indexedMap (viewDay viewState) days
@@ -248,121 +311,147 @@ viewDays days viewState =
 -}
 
 
-viewDay : ViewState -> Int -> RangeDay -> Html LoadedMsg
-viewDay viewState index day_ =
-    case day_.day of
-        Just day ->
-            let
-                ( ( textDesc, descClassApp ), emptyDesc ) =
-                    case day.description of
-                        Just "" ->
-                            ( ( "Click to add description.", " add" ), "" )
+viewDay : ViewState -> Int -> Day -> Html LoadedMsg
+viewDay viewState index day =
+    -- case day_.day of
+    --     Just day ->
+    let
+        ( textDesc, descClassApp, emptyDesc ) =
+            case day.description of
+                Just "" ->
+                    ( "Click to add description.", " add", "" )
 
-                        Nothing ->
-                            ( ( "Click to add description.", " add" ), "" )
+                Nothing ->
+                    ( "Click to add description.", " add", "" )
 
-                        Just other ->
-                            ( ( other, "" ), other )
+                Just other ->
+                    ( other, "", other )
 
-                viewDefaultDesc =
-                    div [ class "planner day-description-wrapper", onClick (EditStart <| DayPartKey index <| DDescription emptyDesc) ]
-                        [ p [ class <| "planner day-description" ++ descClassApp ] [ text textDesc ]
+        viewDefaultDesc =
+            p [ class <| "day-description" ++ descClassApp ] [ text textDesc ]
 
-                        -- , i [ class "fas fa-pen" ] []
-                        ]
+        viewDescription =
+            div [ class "day-description-wrapper", onClick (EditStart <| DayPartKey index <| DDescription emptyDesc) ]
+                [ case viewState.editing of
+                    Just (DayPartKey index_ (DDescription desc)) ->
+                        if index == index_ then
+                            Html.form [ onSubmit EditCommit ]
+                                [ input [ id "edit-input", class "day-description", onKeyDown KeyDown, onInput (EditUpdate << DayPartKeyW index << Just << DDescription), value desc ] []
+                                ]
 
-                viewDescription =
-                    case viewState.editing of
-                        Just (DayPartKey index_ (DDescription desc)) ->
-                            if index == index_ then
-                                Html.form [ onSubmit EditCommit ]
-                                    [ input [ id "edit-input", class "planner day-description", onKeyDown KeyDown, onInput (EditUpdate << DayPartKeyW index << Just << DDescription), value desc ] []
-                                    ]
-
-                            else
-                                viewDefaultDesc
-
-                        _ ->
+                        else
                             viewDefaultDesc
 
-                date =
-                    Date.format "dd.MM.YYYY" day.date
-
-                weekday =
-                    Date.format "EEEE" day.date
-
-                adding =
-                    case viewState.adding of
-                        Just (DayPartKey index_ (DTask _ _)) ->
-                            index == index_
-
-                        _ ->
-                            False
-
-                editing =
-                    case viewState.editing of
-                        Just (DayPartKey index_ (DTask taskkey task)) ->
-                            if index == index_ then
-                                Just (DayPartKey index_ (DTask taskkey task))
-
-                            else
-                                Nothing
-
-                        _ ->
-                            Nothing
-            in
-            div [ class "planner day" ]
-                [ div
-                    [ class "planner day-header" ]
-                    [ h4 [ class "planner day-date weekday noselect" ] [ text <| weekday ++ ", " ]
-                    , h4 [ class "planner day-date noselect" ] [ text date ]
-                    , viewDescription
-                    ]
-                , div [ class "planner day-body" ]
-                    [ viewTasks index day adding editing
-                    , viewTimeline day
-                    ]
+                    _ ->
+                        viewDefaultDesc
                 ]
 
-        Nothing ->
-            let
-                date =
-                    Date.format "dd.MM.YYYY" day_.date
+        adding =
+            case viewState.adding of
+                Just (DayPartKey index_ (DTask _ _)) ->
+                    index == index_
 
-                weekday =
-                    Date.format "EEEE" day_.date
-            in
-            div [ class "planner day nocontent", onClick (AddDay index day_.date) ]
-                [ div [ class "planner day-header" ]
-                    [ h4 [ class "planner day-date weekday noselect" ] [ text <| weekday ++ ", " ]
-                    , h4 [ class "planner day-date noselect" ] [ text date ]
-                    ]
-                , text "click to add day"
+                _ ->
+                    False
+
+        editing =
+            case viewState.editing of
+                Just (DayPartKey index_ (DTask taskkey task)) ->
+                    if index == index_ then
+                        Just (DayPartKey index_ (DTask taskkey task))
+
+                    else
+                        Nothing
+
+                _ ->
+                    Nothing
+
+        focusing =
+            Tuple.first viewState.dayInFocus == index
+    in
+    div [ class "day", id <| "day_" ++ String.fromInt index ]
+        [ div [ class "day-date-bar noselect" ]
+            [ div [ class "day-date-bar-accent" ] []
+            , div [ class "day-date-bar-wrapper" ]
+                [ h4 [ class "day-date" ] [ text <| Date.format "dd" day.date ]
+                , span [ class "day-date-weekday" ] [ text <| Date.format "EE" day.date ]
+
+                -- , span [ class "day-description" ] [
+                , viewDescription
+
+                -- , if focusing then
+                --     span [] [ text "in focus" ]
+                --   else
+                --     text ""
                 ]
+            ]
+        , div [ class "day-body" ]
+            [ viewTasks index day adding editing ]
+
+        -- , viewTimeline day
+        ]
+
+
+
+{- Nothing ->
+   let
+       date =
+           Date.format "dd.MM.YYYY" day_.date
+
+       weekday =
+           Date.format "EEEE" day_.date
+   in
+   div [ class "day nocontent", onClick (AddDay index day_.date) ]
+       [ div [ class "day-header" ]
+           [ h4 [ class "day-date weekday noselect" ] [ text <| weekday ++ ", " ]
+           , h4 [ class "day-date noselect" ] [ text date ]
+           ]
+       , text "click to add day"
+       ]
+-}
 
 
 viewTasks : Int -> Day -> Bool -> Maybe ContentKey -> Html LoadedMsg
 viewTasks index day adding editing =
-    ul [ class "planner day-tasks" ]
-        ((Array.indexedMap (viewTask index editing) day.tasks
-            |> Array.toList
-         )
-            -- ++ [ div [ class "planner day-task add" ]
-            ++ [ if adding then
-                    li [ class "planner day-task adding" ]
-                        [ Html.form [ class "planner add-task-form", onSubmit AddCommit ]
-                            [ input [ id "edit-input", class "planner add-task-input", onInput AddUpdate, placeholder "task", autofocus True, autocomplete False ] [] ]
-                        ]
+    let
+        viewAddTask =
+            div [ class "task-body add-task" ]
+                [ div [ class "task-editing-icon" ] [ i [ class "fas fa-plus" ] [] ]
+                ]
 
-                 else
-                    li [ class "planner day-task add-task", onClick (AddStart <| DayTaskKeyW index 0 Nothing) ]
-                        [ i [ class "fas fa-plus" ] []
-                        ]
-               ]
+        viewEmptyTasks =
+            div [ class "task-body empty" ]
+                [ span [ class "day-tasks-empty-text" ] [ text "No Tasks - Try adding one now!" ] ]
+    in
+    ul [ class "day-tasks noselect" ] <|
+        (if Array.length day.tasks == 0 then
+            [ viewEmptyTasks ]
+
+         else
+            Array.indexedMap (viewTask index editing) day.tasks
+                |> Array.toList
         )
+            ++ [ viewAddTask ]
 
 
 
+{- ((Array.indexedMap (viewTask index editing) day.tasks
+       |> Array.toList
+    )
+       -- ++ [ div [ class "planner day-task add" ]
+       ++ [ if adding then
+               li [ class "day-task adding" ]
+                   [ Html.form [ class "add-task-form", onSubmit AddCommit ]
+                       [ input [ id "edit-input", class "add-task-input", onInput AddUpdate, placeholder "task", autofocus True, autocomplete False ] [] ]
+                   ]
+
+            else
+               li [ class "day-task add-task", onClick (AddStart <| DayTaskKeyW index 0 Nothing) ]
+                   [ i [ class "fas fa-plus" ] []
+                   ]
+          ]
+   )
+-}
 -- |> List.reverse
 --    ]
 
@@ -394,19 +483,19 @@ viewTimeline day =
             Svg.g
                 []
                 [ Svg.rect
-                    [ Svg.width (String.fromFloat <| twidth)
-                    , Svg.height (String.fromInt height)
-                    , Svg.x (String.fromFloat <| tx)
-                    , Svg.fill "lightblue"
-                    , Svg.stroke "grey"
-                    , Svg.strokeWidth "1"
+                    [ SvgA.width (String.fromFloat <| twidth)
+                    , SvgA.height (String.fromInt height)
+                    , SvgA.x (String.fromFloat <| tx)
+                    , SvgA.fill "lightblue"
+                    , SvgA.stroke "grey"
+                    , SvgA.strokeWidth "1"
                     ]
                     []
                 , Svg.text_
-                    [ Svg.x (String.fromFloat <| tx + (twidth / 2))
-                    , Svg.y (String.fromFloat <| height / 2)
-                    , Svg.textAnchor "middle"
-                    , Svg.fill "black"
+                    [ SvgA.x (String.fromFloat <| tx + (twidth / 2))
+                    , SvgA.y (String.fromFloat <| height / 2)
+                    , SvgA.textAnchor "middle"
+                    , SvgA.fill "black"
                     ]
                     [ Svg.text name ]
                 ]
@@ -424,9 +513,9 @@ viewTimeline day =
             Debug.log "tasks" day.tasks
     in
     Svg.svg
-        [ Svg.width (String.fromInt <| width + 5)
-        , Svg.height (String.fromInt <| height + 2)
-        , Svg.viewBox <| "0 0 " ++ (String.fromInt <| width + 5) ++ " " ++ (String.fromInt <| height + 2)
+        [ SvgA.width (String.fromInt <| width + 5)
+        , SvgA.height (String.fromInt <| height + 2)
+        , SvgA.viewBox <| "0 0 " ++ (String.fromInt <| width + 5) ++ " " ++ (String.fromInt <| height + 2)
         ]
         [ Svg.g
             []
@@ -434,21 +523,90 @@ viewTimeline day =
                 |> Array.toList
             )
         , Svg.rect
-            [ Svg.width (String.fromInt width)
-            , Svg.height (String.fromInt height)
-            , Svg.x "1"
-            , Svg.y "1"
-            , Svg.rx "4"
-            , Svg.strokeWidth "1.5"
-            , Svg.stroke "black"
-            , Svg.fill "transparent"
+            [ SvgA.width (String.fromInt width)
+            , SvgA.height (String.fromInt height)
+            , SvgA.x "1"
+            , SvgA.y "1"
+            , SvgA.rx "4"
+            , SvgA.strokeWidth "1.5"
+            , SvgA.stroke "black"
+            , SvgA.fill "transparent"
             ]
             []
         ]
 
 
+viewScheduledTask : Int -> Maybe ContentKey -> Int -> Task -> ( Float, Float ) -> Html LoadedMsg
+viewScheduledTask dayindex maybeediting taskindex task timeTuple =
+    div [ class "task-wrapper" ]
+        [ div [ class "task-time-wrapper" ]
+            [ span [ class "task-time time-start" ] [ text <| String.fromFloat <| Tuple.first timeTuple ]
+            , span [ class "task-time time-end" ] [ text <| String.fromFloat <| Tuple.second timeTuple ]
+            ]
+        , viewTask dayindex maybeediting taskindex task
+        ]
+
+
 viewTask : Int -> Maybe ContentKey -> Int -> Task -> Html LoadedMsg
 viewTask dayindex maybeediting taskindex task =
+    let
+        ( classCompleted, classCheck ) =
+            if task.state == TSCompleted then
+                ( "task-done", "times" )
+
+            else
+                ( "task-todo", "check" )
+
+        ( classImportant, classStar ) =
+            if task.important then
+                ( " orange", "fas fa-star" )
+
+            else
+                ( "", "far fa-star" )
+
+        editingThis =
+            case maybeediting of
+                Just (DayPartKey dayindex_ (DTask taskindex_ task_)) ->
+                    (dayindex == dayindex_) && (taskindex == taskindex_)
+
+                _ ->
+                    False
+
+        ( classEditing, classChevron ) =
+            if editingThis then
+                ( " editing", "fas fa-chevron-right" )
+
+            else
+                ( "", "fas fa-chevron-left" )
+    in
+    div [ class <| "task-body " ++ classCompleted ++ classEditing ++ classImportant ]
+        [ div [ class "task-color-accent" ] []
+        , h4 [ class "task-title noselect" ] [ text task.name ]
+        , div [ class <| "task-editing-wrapper" ++ classEditing ]
+            [ if editingThis then
+                div [ class "task-toggle-expand hover-button", onClick <| EditDiscard ] [ i [ class classChevron ] [] ]
+
+              else
+                div [ class "task-toggle-expand hover-button", onClick <| EditStart <| DayPartKey dayindex <| DTask taskindex task ] [ i [ class classChevron ] [] ]
+            , div [ class "task-editing-icons" ]
+                [ div [ class "task-editing-icon hover-button", onClick <| ToggleDayTask DTImportant dayindex task taskindex ]
+                    [ i [ class classStar ] [] ]
+                , div [ class "task-editing-icon hover-button" ]
+                    [ i [ class "far fa-bell" ] [] ]
+
+                -- , div [ class "task-editing-icon hover-button" ]
+                --     [ i [ class "far fa-alarm-plus" ] [ viewBellIcon ] ]
+                , div [ class "task-editing-icon hover-button" ]
+                    [ i [ class "far fa-clock" ] [] ]
+                , div [ class "task-editing-icon hover-button", onClick <| ToggleDayTask DTState dayindex task taskindex ]
+                    [ i [ class <| "fas fa-" ++ classCheck ] [] ]
+                ]
+            ]
+        ]
+
+
+viewTask_ : Int -> Maybe ContentKey -> Int -> Task -> Html LoadedMsg
+viewTask_ dayindex maybeediting taskindex task =
     let
         classCompleted =
             if task.state == TSCompleted then
@@ -460,7 +618,7 @@ viewTask dayindex maybeediting taskindex task =
         defaultView =
             li
                 [ class <| "planner day-task noselect " ++ classCompleted
-                , onClick (ToggleDayTask dayindex task taskindex)
+                , onClick (ToggleDayTask DTState dayindex task taskindex)
                 , onRightClick (EditStart <| DayPartKey dayindex <| DTask taskindex task)
                 ]
                 [ text task.name ]
@@ -733,6 +891,26 @@ viewGoal index goal patchState =
                         Html.nothing
                 ]
              -}
+            ]
+        ]
+
+
+viewBellIcon : Html LoadedMsg
+viewBellIcon =
+    Svg.svg
+        [ SvgA.viewBox "0 0 16 16"
+        , SvgA.width "16"
+        , SvgA.height "16"
+        ]
+        [ Svg.g
+            [ SvgA.transform "scale(0.03125)"
+            ]
+            [ Svg.path
+                [ SvgA.fill "currentColor"
+                , SvgA.scale "0.03125"
+                , SvgA.d "M256 64C132.3 64 32 164.29 32 288a222.7 222.7 0 0 0 44.79 134l-40.1 40.09a16 16 0 0 0 0 22.63l22.62 22.62a16 16 0 0 0 22.63 0L122 467.22a222.82 222.82 0 0 0 268 0l40.1 40.09a16 16 0 0 0 22.62 0l22.63-22.62a16 16 0 0 0 0-22.63L435.25 422A222.69 222.69 0 0 0 480 288c0-123.71-100.26-224-224-224zm0 400a176 176 0 1 1 176-176 176 176 0 0 1-176 176zm96-200h-72v-72a16 16 0 0 0-16-16h-16a16 16 0 0 0-16 16v72h-72a16 16 0 0 0-16 16v16a16 16 0 0 0 16 16h72v72a16 16 0 0 0 16 16h16a16 16 0 0 0 16-16v-72h72a16 16 0 0 0 16-16v-16a16 16 0 0 0-16-16zM96 0A96 96 0 0 0 0 96a94.81 94.81 0 0 0 15.3 51.26L161.2 25.68A95.63 95.63 0 0 0 96 0zm320 0a95.66 95.66 0 0 0-65.18 25.66l145.89 121.57A94.85 94.85 0 0 0 512 96a96 96 0 0 0-96-96z"
+                ]
+                []
             ]
         ]
 

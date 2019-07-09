@@ -34,7 +34,7 @@ loadUser msg token =
         }
 
 
-loadDays : (Result Http.Error (Array RangeDay) -> StateMsg) -> String -> ( Date, Date ) -> Cmd StateMsg
+loadDays : (Result Http.Error (Array Day) -> StateMsg) -> String -> ( Date, Date ) -> Cmd StateMsg
 loadDays msg token range =
     let
         limit =
@@ -112,18 +112,26 @@ postDay token day =
 
 patchDay : String -> Day -> Cmd StateMsg
 patchDay token day =
+    let
+        ( method, url ) =
+            if day.isPosted then
+                ( "PATCH", "/api/v3/users/me/days/" ++ Date.format "YYYYMMdd" day.date_ )
+
+            else
+                ( "POST", "/api/v3/users/me/days" )
+    in
     Http.request
-        { method = "PATCH"
+        { method = method
         , timeout = Nothing
         , tracker = Nothing
         , body = Http.jsonBody <| encodeDay day
         , headers = [ Http.header "token" token ]
-        , url = "/api/v3/users/me/days/" ++ Date.format "YYYYMMdd" day.date_
+        , url = url
         , expect = Http.expectWhatever (LoadedMsg << Synchronize)
         }
 
 
-decodeDays : ( Date, Date ) -> Decoder (Array RangeDay)
+decodeDays : ( Date, Date ) -> Decoder (Array Day)
 decodeDays range_ =
     let
         range =
@@ -137,20 +145,31 @@ decodeDays range_ =
         |> D.andThen (decodeRangeDays range)
 
 
-decodeRangeDays : List Date -> Array Day -> Decoder (Array RangeDay)
+decodeRangeDays : List Date -> Array Day -> Decoder (Array Day)
 decodeRangeDays range days =
     List.map (decodeRangeDay days) range
         |> Array.fromList
         |> D.succeed
 
 
-decodeRangeDay : Array Day -> Date -> RangeDay
+decodeRangeDay : Array Day -> Date -> Day
 decodeRangeDay days date =
     let
         filtered =
             Array.filter (\day -> day.date == date) days
     in
-    RangeDay date (List.head <| Array.toList <| filtered)
+    case List.head <| Array.toList <| filtered of
+        -- maybeday
+        Just day ->
+            day
+
+        Nothing ->
+            newDay date
+
+
+newDay : Date -> Day
+newDay date =
+    Day date date Nothing [] (Array.fromList []) False
 
 
 
@@ -163,10 +182,11 @@ decodeDay =
     D.map6 Day
         (D.field "date" decodeDate)
         (D.field "date" decodeDate)
-        (D.field "owner" D.string)
+        -- (D.field "owner" D.string)
         (D.maybe <| D.field "description" D.string)
         (D.withDefault [] <| D.field "attributes" <| D.list D.string)
         (D.field "tasks" <| D.array decodeTask)
+        (D.succeed True)
 
 
 decodeDate : Decoder Date
@@ -221,11 +241,29 @@ decodeDate =
 
 decodeTask : Decoder Task
 decodeTask =
-    D.map4 Task
+    D.map5 Task
         (D.field "name" D.string)
         (D.field "name" D.string)
         (D.field "state" decodeState |> D.withDefault TSTodo)
         (D.optionalField "time" decodeTime)
+        (D.field "important" decodeImportant |> D.withDefault False)
+
+
+decodeImportant : Decoder Bool
+decodeImportant =
+    D.string
+        |> D.andThen
+            (\str ->
+                case str of
+                    "true" ->
+                        D.succeed True
+
+                    "false" ->
+                        D.succeed False
+
+                    _ ->
+                        D.fail "malformed important value"
+            )
 
 
 decodeTime : Decoder Time
@@ -317,7 +355,8 @@ encodeDay : Day -> E.Value
 encodeDay day =
     E.object
         [ ( "date", E.string <| Date.format "YYYYMMdd" day.date )
-        , ( "owner", E.string day.owner )
+
+        -- , ( "owner", E.string day.owner )
         , ( "description", E.string <| Maybe.withDefault "" day.description )
         , ( "attributes", (E.list <| E.string) day.attributes )
         , ( "tasks", encodeTasks day.tasks )
@@ -334,7 +373,16 @@ encodeTask task =
     E.object
         [ ( "name", E.string task.name )
         , ( "state", encodeState task.state )
+        , ( "important", encodeBool task.important )
         ]
+
+
+encodeBool bool =
+    if bool then
+        E.string "true"
+
+    else
+        E.string "false"
 
 
 encodeState state =

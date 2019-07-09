@@ -67,7 +67,7 @@ loggedinInit session token today =
 --, loadDays token range
 
 
-loadedInit : Session -> String -> User -> Array RangeDay -> Date -> ( StateModel, Cmd StateMsg )
+loadedInit : Session -> String -> User -> Array Day -> Date -> ( StateModel, Cmd StateMsg )
 loadedInit session token user days today =
     let
         range =
@@ -80,6 +80,7 @@ loadedInit session token user days today =
         , days = days
         , viewState =
             { editing = Nothing
+            , dayInFocus = ( 0, 100000 )
 
             --  hovering = Nothing
             , loading = Nothing
@@ -358,30 +359,25 @@ updateLoaded msg model =
                 --     ( modelNoEditing, Cmd.none )
                 Just (DayPartKey dayindex (DTask taskindex task)) ->
                     case Array.get dayindex model.days of
-                        Just rangeday ->
-                            case rangeday.day of
-                                Just day_ ->
-                                    let
-                                        tasks =
-                                            case task.name of
-                                                "" ->
-                                                    Array.append
-                                                        (Array.slice 0 taskindex day_.tasks)
-                                                        (Array.slice (taskindex + 1) (1 + Array.length day_.tasks) day_.tasks)
+                        Just day_ ->
+                            let
+                                tasks =
+                                    case task.name of
+                                        "" ->
+                                            Array.append
+                                                (Array.slice 0 taskindex day_.tasks)
+                                                (Array.slice (taskindex + 1) (1 + Array.length day_.tasks) day_.tasks)
 
-                                                _ ->
-                                                    Array.set taskindex task day_.tasks
+                                        _ ->
+                                            Array.set taskindex task day_.tasks
 
-                                        day =
-                                            { day_ | tasks = tasks }
+                                day =
+                                    { day_ | tasks = tasks }
 
-                                        days =
-                                            Array.set dayindex (RangeDay day.date (Just day)) model.days
-                                    in
-                                    ( { modelNoEditing | days = days }, patchDay model.token day )
-
-                                Nothing ->
-                                    cmdnone modelNoEditing
+                                days =
+                                    Array.set dayindex day model.days
+                            in
+                            ( { modelNoEditing | days = days }, patchDay model.token day )
 
                         _ ->
                             cmdnone modelNoEditing
@@ -395,13 +391,12 @@ updateLoaded msg model =
                                         newday =
                                             { day | description = Just desc }
 
-                                        newrangeday =
-                                            { date = day.date
-                                            , day = Just newday
-                                            }
-
+                                        -- newrangeday =
+                                        --     { date = day.date
+                                        --     , day = Just newday
+                                        --     }
                                         newdays =
-                                            Array.set dayindex newrangeday model.days
+                                            Array.set dayindex newday model.days
                                     in
                                     ( { modelNoEditing | days = newdays }, patchDay model.token newday )
 
@@ -438,7 +433,7 @@ updateLoaded msg model =
                 DayTaskKeyW dindex tindex Nothing ->
                     let
                         task =
-                            Task "" "" TSTodo Nothing
+                            Task "" "" TSTodo Nothing False
 
                         -- Task "" "" TSTodo Nothing
                     in
@@ -452,7 +447,7 @@ updateLoaded msg model =
                 Just (DayPartKey dindex (DTask _ _)) ->
                     let
                         task =
-                            Task value value TSTodo Nothing
+                            Task value value TSTodo Nothing False
                     in
                     cmdnone { model | viewState = (\vs -> { vs | adding = Just <| DayPartKey dindex <| DTask 0 task }) model.viewState }
 
@@ -474,30 +469,25 @@ updateLoaded msg model =
                                 -- days_ =
                             in
                             case maybeday of
-                                Just rangeday ->
-                                    case rangeday.day of
-                                        Just day_ ->
-                                            let
-                                                tasks =
-                                                    case task.name of
-                                                        "" ->
-                                                            day_.tasks
+                                Just day_ ->
+                                    let
+                                        tasks =
+                                            case task.name of
+                                                "" ->
+                                                    day_.tasks
 
-                                                        _ ->
-                                                            Array.append day_.tasks <| Array.fromList [ task ]
+                                                _ ->
+                                                    Array.append day_.tasks <| Array.fromList [ task ]
 
-                                                day =
-                                                    { day_ | tasks = tasks }
+                                        day =
+                                            { day_ | tasks = tasks }
 
-                                                days =
-                                                    Array.set dayindex (RangeDay day.date (Just day)) model.days
-                                            in
-                                            ( { model | days = days }, patchDay model.token day )
+                                        days =
+                                            Array.set dayindex day model.days
+                                    in
+                                    ( { model | days = days }, patchDay model.token day )
 
-                                        Nothing ->
-                                            ( model, Cmd.none )
-
-                                _ ->
+                                Nothing ->
                                     ( model, Cmd.none )
 
                         _ ->
@@ -511,17 +501,14 @@ updateLoaded msg model =
         AddDay index date ->
             let
                 newday =
-                    Day date date model.user.email Nothing [] (Array.fromList [])
-
-                rangeday =
-                    RangeDay date (Just newday)
+                    Day date date Nothing [] (Array.fromList []) False
 
                 days =
-                    Array.set index rangeday model.days
+                    Array.set index newday model.days
             in
             updateLoaded (SynchronizeLoad (postDay model.token newday)) { model | days = days }
 
-        ToggleDayTask dayindex task taskindex ->
+        ToggleDayTask dtpart dayindex task taskindex ->
             let
                 maybeday =
                     Array.get dayindex model.days
@@ -530,30 +517,30 @@ updateLoaded msg model =
                     cmdnone { model | viewState = (\vs -> { vs | loading = Just <| ViewLError <| Http.BadStatus 418 }) model.viewState }
             in
             case maybeday of
-                Just maybeday_ ->
-                    case maybeday_.day of
-                        Just day ->
-                            let
-                                newtask =
+                Just day ->
+                    let
+                        newtask =
+                            case dtpart of
+                                DTState ->
                                     if task.state == TSCompleted then
                                         { task | state = TSTodo }
 
                                     else
                                         { task | state = TSCompleted }
 
-                                newtasks =
-                                    Array.set taskindex newtask day.tasks
+                                DTImportant ->
+                                    { task | important = not task.important }
 
-                                newday =
-                                    { day | tasks = newtasks }
+                        newtasks =
+                            Array.set taskindex newtask day.tasks
 
-                                newdays =
-                                    Array.set dayindex { maybeday_ | day = Just newday } model.days
-                            in
-                            updateLoaded (SynchronizeLoad (patchDay model.token newday)) { model | days = newdays }
+                        newday =
+                            { day | tasks = newtasks }
 
-                        Nothing ->
-                            badresponse
+                        newdays =
+                            Array.set dayindex newday model.days
+                    in
+                    updateLoaded (SynchronizeLoad (patchDay model.token newday)) { model | days = newdays }
 
                 Nothing ->
                     badresponse
@@ -606,17 +593,60 @@ updateLoaded msg model =
             in
             ( { model | viewState = (\vs -> { vs | loading = Just ViewLLoading, dayRange = newRange }) model.viewState }, loadDays (LoadedMsg << UpdatedDays) model.token model.viewState.dayRange )
 
-        HideSettings ->
-            cmdnone { model | partVis = (\pv -> { pv | settingsOverlay = Nothing }) model.partVis }
-
         ShowSettings part ->
-            cmdnone { model | partVis = (\pv -> { pv | settingsOverlay = Just part }) model.partVis }
+            case part of
+                SettingsHide ->
+                    cmdnone { model | partVis = (\pv -> { pv | settingsOverlay = Nothing }) model.partVis }
+
+                _ ->
+                    cmdnone { model | partVis = (\pv -> { pv | settingsOverlay = Just part }) model.partVis }
 
         Logout ->
             ( model, Cmd.batch [ logoutPort (), Route.replaceUrl (Session.navKey model.session) Route.Home ] )
 
+        ScrolledDays ->
+            ( { model | viewState = (\vs -> { vs | dayInFocus = ( 0, 10000 ) }) model.viewState }
+            , Cmd.map LoadedMsg <| Cmd.batch <| Array.toList <| Array.indexedMap computeDistance model.days
+            )
+
+        ComputedDayDistance index result ->
+            case result of
+                Ok element ->
+                    let
+                        distance =
+                            if element.viewport.width > 768 then
+                                -- not mobile
+                                (element.viewport.height / 2 + element.viewport.y)
+                                    - (element.element.height / 2 + element.element.y)
+                                    |> abs
+
+                            else
+                                (2 * element.viewport.height / 3 + element.viewport.y)
+                                    - (element.element.height / 2 + element.element.y)
+                                    |> abs
+
+                        -- _ =
+                        --     Debug.log "previous distance" model.viewState.dayInFocus
+                    in
+                    if distance < Tuple.second model.viewState.dayInFocus then
+                        let
+                            _ =
+                                Debug.log "newFocus" ( index, distance )
+                        in
+                        cmdnone { model | viewState = (\vs -> { vs | dayInFocus = ( index, distance ) }) model.viewState }
+
+                    else
+                        cmdnone model
+
+                Err _ ->
+                    cmdnone model
+
         _ ->
             cmdnone model
+
+
+computeDistance index day =
+    Task.attempt (ComputedDayDistance index) (Browser.Dom.getElement ("day_" ++ String.fromInt index))
 
 
 stringFromDateTuple : ( Date, Date ) -> String
@@ -651,22 +681,9 @@ getToday =
     Task.perform (LoggedinMsg << Today) Date.today
 
 
+getDayFromArray : Int -> Array Day -> Maybe Day
 getDayFromArray index days =
-    let
-        maybeday_ =
-            Array.get index days
-    in
-    case maybeday_ of
-        Just maybeday ->
-            case maybeday.day of
-                Just day ->
-                    Just day
-
-                _ ->
-                    Nothing
-
-        _ ->
-            Nothing
+    Array.get index days
 
 
 

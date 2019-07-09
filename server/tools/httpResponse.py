@@ -13,6 +13,9 @@ def NotModified():
 
 
 def BadRequest(hints: list = None):
+    '''
+    takes an optional list of hints why the request failed
+    '''
     return make('Bad Request. Check parameters', 400, hints)
 
 
@@ -26,6 +29,10 @@ def Forbidden():
 
 def NotFound():
     return make('Could not find item', 404)
+
+
+def BadMethod():
+    return make('Invalid Method.', 405)
 
 
 def Conflict():

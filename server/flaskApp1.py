@@ -31,15 +31,16 @@ def index():
 def login():
     body = request.get_json()
 
+    # print(body)
     if not 'password' in body:
-        return hRes.BadRequest()
+        return hRes.BadRequest(['missing required key password'])
 
     if 'email' in body:
         key = 'email'
     elif 'username' in body:
         key = 'username'
     else:
-        return hRes.BadRequest()
+        return hRes.BadRequest(['missing authentication key ("email" / "username")'])
 
     value = body[key]
     password = body['password']
@@ -51,6 +52,20 @@ def login():
 
     return mr(j({'token': response}), 200)
 
+
+@app.route(apipath + '/logout', methods=['POST'])
+def logout():
+    userOrError = fh.manageAuth('me', request)
+    if type(userOrError) == dict:
+        _user = userOrError
+        uID = _user['_id']
+    else:
+        return userOrError
+    
+    _user['token'] = ''
+    dba.setUserByKey(_user,'_id',uID)
+
+    return hRes.make('Successfully logged out', 200, ['token was reset'])
 
 @app.route(apipath + '/users', methods=['GET', 'POST'])
 def users():
@@ -103,6 +118,33 @@ def users():
     return mr(j(user), 201)
 
 
+@app.route(apipath + '/users/<uID>/setPassword', methods=['POST'])
+def userSetPw(uID):
+    userOrError = fh.manageAuth(uID, request)
+    if type(userOrError) == dict:
+        (_user, userSearching) = (userOrError, None)
+        uID = _user['_id']
+    elif type(userOrError) == tuple:
+        (_user, userSearching) = userOrError
+    else:
+        return userOrError
+
+    schema = {'password': fh.getSchema.userPostCt['password']}
+    [userPw, hints, fatal] = fh.assertRequestStrictCH(request, schema)
+
+    if fatal:
+        return hRes.BadRequest(hints)
+    
+    _user['password'] = dba.argon2.hash(userPw['password'])
+    _user['token'] = ''
+    _user.pop('_id')
+    # try:
+    dba.setUserByKey(_user,'_id', uID)
+    # except:
+
+    return hRes.make('Successfully updated password', 200, ['you need to log in now'] + hints)
+
+
 @app.route(apipath + '/users/<uID>', methods=itemMethods)
 def user(uID):
     userOrError = fh.manageAuth(uID, request)
@@ -118,35 +160,33 @@ def user(uID):
         return mr(j(_user), 200)
 
     elif request.method == 'PATCH':
-        try:
-            schema = fh.getSchema.userCt
-            # schema.pop('token')
 
-            validBody = fh.assertRequestStrictC(request, schema)
-        except KeyError:
-            return hRes.BadRequest(
-            )  # request does not match schema. -> Reject
+        [userPatch, hints, fatal] = fh.assertRequestStrictCH(request, fh.getSchema.userCt)
+        if fatal:
+            return hRes.BadRequest(hints)
 
-        if 'email' in validBody:
+        if 'email' in userPatch:
             try:
-                if dba.getUserByKey('email', validBody['email']):
+                possibleOtherUser = dba.getUserByKey('email', userPatch['email'])
+                if possibleOtherUser['token'] != _user['token']:
                     return hRes.Conflict()  # email exists
             except KeyError:
                 pass
 
-        if 'username' in validBody:
+        if 'username' in userPatch:
             try:
-                if dba.getUserByKey('username', validBody['username']):
+                possibleOtherUser = dba.getUserByKey('username', userPatch['username'])
+                if possibleOtherUser['token'] != _user['token']:
                     return hRes.Conflict()  # uname exists
             except KeyError:
                 pass
 
-        if 'level' in validBody and 'level' in _user:
+        if 'level' in userPatch and 'level' in _user:
             if not (_user['level'] in ['admin', 'mod'] or userSearching):
                 return hRes.Forbidden()
 
         user = dict(_user)  # set newUser = oldUser
-        user.update(validBody)  # update newUser with new key/value Pairs
+        user.update(userPatch)  # update newUser with new key/value Pairs
 
         if user != _user:
             # try:
@@ -154,7 +194,7 @@ def user(uID):
             # except:  # if dbError
             #     return hRes.InternalServer()
 
-        return mr(j(user), 200)  # respond with (not-) modified user
+        return hRes.make(user, 200, hints)  # respond with (not-) modified user
 
     elif request.method == 'DELETE':
         dba.deleteUser(uID)
@@ -170,29 +210,30 @@ def days(uID):
     else:
         return userOrError
 
-    limit, offset = None, None
-
-    try:
-        limit = fh.clamp(int(request.headers.get('limit')), 1, 500)
-    except:
-        pass
-
-    try:
-        offset = fh.clamp(int(request.headers.get('offset')), 0, 9500)
-    except:
-        pass
-
-    try:
-        _days = dba.getDays(uID, *fh.cleanList(limit, offset))
-    except ValueError:
-        return hRes.BadRequest()
-    except KeyError:
-        # print("returning empty days")
-        # print(_user)
-        return mr(j([]), 200)
-
     if request.method == 'GET':
-        return mr(j(_days), 200)
+
+        limit, offset = None, None
+
+        try:
+            limit = fh.clamp(int(request.headers.get('limit')), 1, 500)
+        except:
+            pass
+        try:
+            offset = fh.clamp(int(request.headers.get('offset')), 0, 9500)
+        except:
+            pass
+
+        try:
+            _days = dba.getDays(uID, *fh.cleanList(limit, offset))
+            return mr(j(_days), 200)
+
+        except ValueError:
+            return hRes.BadRequest()
+        except KeyError:
+            # print("returning empty days")
+            # print(_user)
+            return mr(j([]), 200)
+        
 
     elif request.method == 'POST':
         # try:
@@ -237,14 +278,15 @@ def day(uID, date):
         return mr(j(_day), 200)
 
     elif request.method == 'PATCH':
-        try:
-            validBody = fh.assertRequestStrictC(request,
-                                                fh.getSchema.dayCt)
-        except KeyError:
-            return hRes.BadRequest()
+        
+        [dayPatch, hints, fatal] = fh.assertRequestStrictCH(request,
+                                            fh.getSchema.dayCt)
+
+        if fatal:
+            return hRes.BadRequest(hints)    
 
         day = dict(_day)
-        day.update(validBody)
+        day.update(dayPatch)
 
         if day != _day:
             dba.setDay(day)
@@ -326,6 +368,17 @@ def settings(uID):
 @app.errorhandler(400)
 def BadRequestError(e):
     return hRes.BadRequest()
+
+
+@app.errorhandler(405)
+def BadMethodError(e):
+    # print(e)
+    return hRes.BadMethod()
+
+
+@app.errorhandler(404)
+def NotFoundError(e):
+    return hRes.NotFound()
 
 
 if __name__ == "__main__":

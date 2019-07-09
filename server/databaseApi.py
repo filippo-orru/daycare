@@ -21,7 +21,7 @@ def login(key, value, p):
         token = ''
 
     if len(token) < 32:
-        token = token_urlsafe(32)
+        token = token_urlsafe(32)[0:32]
         db.update('users', [{key: value}, {'$set': {'token': token}}])
 
     return token
@@ -42,6 +42,7 @@ def logout(key, value, p):
 def authUser(key, value, p):
     try:
         result = getUserByKey(key, value, False)
+        print(result)
     except KeyError:
         return False
 

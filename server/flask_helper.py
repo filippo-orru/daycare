@@ -11,9 +11,15 @@ def assertRequestStrictCH(request, schema: dict):
     '''
     :shrug:
     '''
-    body = request.get_json()
+    _body = request.get_json()
 
-    body, hints, fatal = assertBodyRecursiveStrictCH(body, schema)
+    body, hints, fatal = assertBodyRecursiveStrictCH(_body, schema)
+
+    # difference = []
+    for (key) in _body.keys():
+        if key not in body:
+            # difference.append(key)
+            hints.append("'" + key + "' was supplied but ignored")
 
     # if not body:
     #     raise KeyError('No key in body matched schema.')
@@ -43,6 +49,9 @@ def assertBodyRecursiveStrictCH(body: dict, schema: dict):
         
         pattern = schemavalue[0]
         required = schemavalue[1]
+        expl = None
+        if len(schemavalue) == 3:
+            expl = schemavalue[2]
 
 
         if schemakey in body:
@@ -81,7 +90,11 @@ def assertBodyRecursiveStrictCH(body: dict, schema: dict):
                     newbody[schemakey] = bodyvalue
                 
                 else:
-                    hints.append(schemakey + ' must match regex: ' + pattern + '.')
+                    if expl:
+                        hints.append(expl)
+                    else:
+                        hints.append(schemakey + ' must match regex: ' + pattern + '.')
+
                     fatal += 1
         
         elif required:
@@ -346,21 +359,26 @@ def manageAuth(uID, request):
 
     token = request.headers.get('token')
 
+    brq = httpResponse.BadRequest
+
     if uID == 'me':  # search by token
         key = 'token'
         value = token
-        response = httpResponse.Unauthorized()
+        errorResponse = httpResponse.Unauthorized()
 
-        if not re.search(getSchema.tokenRe, value): # token < 50 chars
-            return response
+        try:
+            if not re.search(getSchema.tokenRe, value): # token < 50 chars
+                return brq(['token of invalid format'])
+        except:
+            return brq(['missing token'])
 
     else:  # search by id
         key = '_id'
         value = uID
-        response = httpResponse.NotFound()
+        errorResponse = httpResponse.NotFound()
 
-    if value in ['', None]:
-        return response
+        if value in ['', None]:
+            return brq(['id must not be empty'])
 
     try:
         user = dba.getUserByKey(key, value)
@@ -377,7 +395,7 @@ def manageAuth(uID, request):
                 # userSearching exists but insufficient privileges
 
     except IndexError:
-        return response
+        return errorResponse
     except KeyError:
         return httpResponse.Unauthorized()
     except ValueError:
